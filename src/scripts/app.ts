@@ -1,3 +1,4 @@
+// @ts-strict-ignore
 import { ComfyLogging } from './logging'
 import { ComfyWidgetConstructor, ComfyWidgets, initWidgets } from './widgets'
 import { ComfyUI, $el } from './ui'
@@ -14,7 +15,7 @@ import { addDomClippingSetting } from './domWidget'
 import { createImageHost, calculateImageGrid } from './ui/imagePreview'
 import { DraggableList } from './ui/draggableList'
 import { applyTextReplacements, addStylesheet } from './utils'
-import type { ComfyExtension } from '@/types/comfy'
+import type { ComfyExtension, MissingNodeType } from '@/types/comfy'
 import {
   type ComfyWorkflowJSON,
   type NodeId,
@@ -38,7 +39,7 @@ import {
   SYSTEM_NODE_DEFS,
   useNodeDefStore
 } from '@/stores/nodeDefStore'
-import { Vector2 } from '@comfyorg/litegraph'
+import { INodeInputSlot, Vector2 } from '@comfyorg/litegraph'
 import _ from 'lodash'
 import {
   showExecutionErrorDialog,
@@ -74,6 +75,15 @@ function sanitizeNodeName(string) {
   })
 }
 
+type Clipspace = {
+  widgets?: { type?: string; name?: string; value?: any }[] | null
+  imgs?: HTMLImageElement[] | null
+  original_imgs?: HTMLImageElement[] | null
+  images?: any[] | null
+  selectedIndex: number
+  img_paste_mode: string
+}
+
 /**
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
  */
@@ -94,8 +104,8 @@ export class ComfyApp {
    * Content Clipboard
    * @type {serialized node object}
    */
-  static clipspace = null
-  static clipspace_invalidate_handler = null
+  static clipspace: Clipspace | null = null
+  static clipspace_invalidate_handler: (() => void) | null = null
   static open_maskeditor = null
   static clipspace_return_node = null
 
@@ -138,6 +148,8 @@ export class ComfyApp {
   canvasContainer: HTMLElement
   menu: ComfyAppMenu
   bypassBgColor: string
+  // Set by Comfy.Clipspace extension
+  openClipspace: () => void = () => {}
 
   /**
    * @deprecated Use useExecutionStore().executingNodeId instead
@@ -1127,7 +1139,7 @@ export class ComfyApp {
 
       // No image found. Look for node data
       data = data.getData('text/plain')
-      let workflow: ComfyWorkflowJSON
+      let workflow: ComfyWorkflowJSON | null = null
       try {
         data = data.slice(data.indexOf('{'))
         workflow = JSON.parse(data)
@@ -1137,7 +1149,7 @@ export class ComfyApp {
           data = data.slice(data.indexOf('{'))
           workflow = JSON.parse(data)
         } catch (error) {
-          console.error(error)
+          workflow = null
         }
       }
 
@@ -1389,8 +1401,7 @@ export class ComfyApp {
       size,
       fgcolor,
       bgcolor,
-      selected,
-      mouse_over
+      selected
     ) {
       const res = origDrawNodeShape.apply(this, arguments)
 
@@ -1415,7 +1426,6 @@ export class ComfyApp {
 
       if (color) {
         const shape =
-          // @ts-expect-error
           node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE
         ctx.lineWidth = lineWidth
         ctx.globalAlpha = 0.8
@@ -1837,19 +1847,10 @@ export class ComfyApp {
 
     this.#addAfterConfigureHandler()
 
-    // Make LGraphCanvas shallow reactive so that any change on the root object
-    // triggers reactivity.
-    this.canvas = shallowReactive(
-      new LGraphCanvas(canvasEl, this.graph, {
-        skip_events: true,
-        skip_render: true
-      })
-    )
-    // Bind event/ start rendering later, so that event handlers get reactive canvas reference.
-    this.canvas.options.skip_events = false
-    this.canvas.options.skip_render = false
-    this.canvas.bindEvents()
-    this.canvas.startRendering()
+    // Make LGraphCanvas.state shallow reactive so that any change on the root
+    // object triggers reactivity.
+    this.canvas = new LGraphCanvas(canvasEl, this.graph)
+    this.canvas.state = shallowReactive(this.canvas.state)
 
     this.ctx = canvasEl.getContext('2d')
 
@@ -1899,8 +1900,7 @@ export class ComfyApp {
 
     // Save current workflow automatically
     setInterval(() => {
-      const sortNodes = useSettingStore().get('Comfy.Workflow.SortNodeIdOnSave')
-      const workflow = JSON.stringify(this.graph.serialize({ sortNodes }))
+      const workflow = JSON.stringify(this.serializeGraph())
       localStorage.setItem('workflow', workflow)
       if (api.clientId) {
         sessionStorage.setItem(`workflow:${api.clientId}`, workflow)
@@ -1960,7 +1960,7 @@ export class ComfyApp {
     const nodeDefArray: ComfyNodeDef[] = Object.values(allNodeDefs)
     this.#invokeExtensions('beforeRegisterVueAppNodeDefs', nodeDefArray, this)
     nodeDefStore.updateNodeDefs(nodeDefArray)
-    nodeDefStore.updateWidgets(this.widgets)
+    nodeDefStore.widgets = this.widgets
   }
 
   /**
@@ -1968,7 +1968,9 @@ export class ComfyApp {
    */
   async registerNodes() {
     // Load node definitions from the backend
-    const defs = await api.getNodeDefs()
+    const defs = await api.getNodeDefs({
+      validate: useSettingStore().get('Comfy.Validation.NodeDefs')
+    })
     await this.registerNodesFromDefs(defs)
     await this.#invokeExtensionsAsync('registerCustomNodes')
     if (this.vueAppReady) {
@@ -2091,6 +2093,11 @@ export class ComfyApp {
           incoming: Record<string, any>
         ) => {
           const result = { ...incoming }
+          if (current.widget === undefined && incoming.widget !== undefined) {
+            // Field must be input as only inputs can be converted
+            this.inputs.push(current as INodeInputSlot)
+            return incoming
+          }
           for (const key of ['name', 'type', 'shape']) {
             if (current[key] !== undefined) {
               result[key] = current[key]
@@ -2172,12 +2179,9 @@ export class ComfyApp {
     localStorage.setItem('litegrapheditor_clipboard', old)
   }
 
-  showMissingNodesError(missingNodeTypes, hasAddedNodes = true) {
+  #showMissingNodesError(missingNodeTypes: MissingNodeType[]) {
     if (useSettingStore().get('Comfy.Workflow.ShowMissingNodesWarning')) {
-      showLoadWorkflowWarning({
-        missingNodeTypes,
-        hasAddedNodes
-      })
+      showLoadWorkflowWarning({ missingNodeTypes })
     }
 
     this.logging.addEntry('Comfy.App', 'warn', {
@@ -2185,7 +2189,7 @@ export class ComfyApp {
     })
   }
 
-  showMissingModelsError(missingModels, paths) {
+  #showMissingModelsError(missingModels, paths) {
     if (useSettingStore().get('Comfy.Workflow.ShowMissingModelsWarning')) {
       showMissingModelsWarning({
         missingModels,
@@ -2255,7 +2259,7 @@ export class ComfyApp {
       graphData = validatedGraphData ?? graphData
     }
 
-    const missingNodeTypes = []
+    const missingNodeTypes: MissingNodeType[] = []
     const missingModels = []
     await this.#invokeExtensionsAsync(
       'beforeConfigureGraph',
@@ -2280,8 +2284,8 @@ export class ComfyApp {
       graphData.models &&
       useSettingStore().get('Comfy.Workflow.ShowMissingModelsWarning')
     ) {
-      for (let m of graphData.models) {
-        const models_available = await useModelStore().getModelsInFolderCached(
+      for (const m of graphData.models) {
+        const models_available = await useModelStore().getLoadedModelFolder(
           m.directory
         )
         if (models_available === null) {
@@ -2414,11 +2418,11 @@ export class ComfyApp {
 
     // TODO: Properly handle if both nodes and models are missing (sequential dialogs?)
     if (missingNodeTypes.length && showMissingNodesDialog) {
-      this.showMissingNodesError(missingNodeTypes)
+      this.#showMissingNodesError(missingNodeTypes)
     }
     if (missingModels.length && showMissingModelsDialog) {
       const paths = await api.getFolderPaths()
-      this.showMissingModelsError(missingModels, paths)
+      this.#showMissingModelsError(missingModels, paths)
     }
     await this.#invokeExtensionsAsync('afterConfigureGraph', missingNodeTypes)
     requestAnimationFrame(() => {
@@ -2427,7 +2431,18 @@ export class ComfyApp {
   }
 
   /**
-   * Converts the current graph workflow for sending to the API
+   * Serializes a graph using preferred user settings.
+   * @param graph The litegraph to serialize.
+   * @returns A serialized graph (aka workflow) with preferred user settings.
+   */
+  serializeGraph(graph: LGraph = this.graph) {
+    const sortNodes = useSettingStore().get('Comfy.Workflow.SortNodeIdOnSave')
+    return graph.serialize({ sortNodes })
+  }
+
+  /**
+   * Converts the current graph workflow for sending to the API.
+   * Note: Node widgets are updated before serialization to prepare queueing.
    * @returns The workflow and node links
    */
   async graphToPrompt(graph = this.graph, clean = true) {
@@ -2453,9 +2468,7 @@ export class ComfyApp {
       }
     }
 
-    const sortNodes = useSettingStore().get('Comfy.Workflow.SortNodeIdOnSave')
-
-    const workflow = graph.serialize({ sortNodes })
+    const workflow = this.serializeGraph(graph)
     const output = {}
     // Process nodes in order of execution
     for (const outerNode of graph.computeExecutionOrder(false)) {
@@ -2796,10 +2809,9 @@ export class ComfyApp {
       (n) => !LiteGraph.registered_node_types[n.class_type]
     )
     if (missingNodeTypes.length) {
-      this.showMissingNodesError(
+      this.#showMissingNodesError(
         // @ts-expect-error
-        missingNodeTypes.map((t) => t.class_type),
-        false
+        missingNodeTypes.map((t) => t.class_type)
       )
       return
     }
@@ -2908,10 +2920,11 @@ export class ComfyApp {
     }
     if (this.vueAppReady) {
       useToastStore().add(requestToastMessage)
-      useModelStore().clearCache()
     }
 
-    const defs = await api.getNodeDefs()
+    const defs = await api.getNodeDefs({
+      validate: useSettingStore().get('Comfy.Validation.NodeDefs')
+    })
 
     for (const nodeId in defs) {
       this.registerNodeDef(nodeId, defs[nodeId])

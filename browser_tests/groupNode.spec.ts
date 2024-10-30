@@ -1,11 +1,8 @@
 import { expect } from '@playwright/test'
-import { ComfyPage, NodeReference, comfyPageFixture as test } from './ComfyPage'
+import { ComfyPage, comfyPageFixture as test } from './fixtures/ComfyPage'
+import type { NodeReference } from './fixtures/utils/litegraphUtils'
 
 test.describe('Group Node', () => {
-  test.afterEach(async ({ comfyPage }) => {
-    await comfyPage.setSetting('Comfy.UseNewMenu', 'Disabled')
-  })
-
   test.describe('Node library sidebar', () => {
     const groupNodeName = 'DefautWorkflowGroupNode'
     const groupNodeCategory = 'group nodes>workflow'
@@ -17,11 +14,6 @@ test.describe('Group Node', () => {
       libraryTab = comfyPage.menu.nodeLibraryTab
       await comfyPage.convertAllNodesToGroupNode(groupNodeName)
       await libraryTab.open()
-    })
-
-    test.afterEach(async ({ comfyPage }) => {
-      await comfyPage.setSetting('Comfy.NodeLibrary.Bookmarks.V2', [])
-      await libraryTab.close()
     })
 
     test('Is added to node library sidebar', async ({ comfyPage }) => {
@@ -98,6 +90,7 @@ test.describe('Group Node', () => {
   })
 
   test('Displays tooltip on title hover', async ({ comfyPage }) => {
+    await comfyPage.setSetting('Comfy.EnableTooltips', true)
     await comfyPage.convertAllNodesToGroupNode('Group Node')
     await comfyPage.page.mouse.move(47, 173)
     const tooltipTimeout = 500
@@ -192,13 +185,6 @@ test.describe('Group Node', () => {
       await groupNode.copy()
     })
 
-    test.afterEach(async ({ comfyPage }) => {
-      await comfyPage.setSetting('Comfy.UseNewMenu', 'Disabled')
-      await comfyPage.page.evaluate((groupNodeName) => {
-        window['LiteGraph'].unregisterNodeType(groupNodeName)
-      }, GROUP_NODE_TYPE)
-    })
-
     test('Copies and pastes group node within the same workflow', async ({
       comfyPage
     }) => {
@@ -250,6 +236,22 @@ test.describe('Group Node', () => {
         await comfyPage.nextFrame()
         await verifyNodeLoaded(comfyPage, 1)
       })
+    })
+  })
+
+  test.describe('Keybindings', () => {
+    test('Convert to group node, no selection', async ({ comfyPage }) => {
+      expect(await comfyPage.getVisibleToastCount()).toBe(0)
+      await comfyPage.page.keyboard.press('Alt+g')
+      await comfyPage.page.waitForTimeout(300)
+      expect(await comfyPage.getVisibleToastCount()).toBe(1)
+    })
+    test('Convert to group node, selected 1 node', async ({ comfyPage }) => {
+      expect(await comfyPage.getVisibleToastCount()).toBe(0)
+      await comfyPage.clickTextEncodeNode1()
+      await comfyPage.page.keyboard.press('Alt+g')
+      await comfyPage.page.waitForTimeout(300)
+      expect(await comfyPage.getVisibleToastCount()).toBe(1)
     })
   })
 })

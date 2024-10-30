@@ -1,3 +1,4 @@
+// @ts-strict-ignore
 import type { SettingParams } from '@/types/settingTypes'
 import { app } from '../../scripts/app'
 import {
@@ -99,8 +100,7 @@ app.registerExtension({
         } else {
           w = node.size[0]
           h = node.size[1]
-          // @ts-expect-error
-          let titleMode = node.constructor.title_mode
+          const titleMode = node.constructor.title_mode
           if (
             titleMode !== LiteGraph.TRANSPARENT_TITLE &&
             titleMode !== LiteGraph.NO_TITLE

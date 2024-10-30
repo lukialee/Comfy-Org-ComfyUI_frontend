@@ -1,3 +1,4 @@
+// @ts-strict-ignore
 module.exports = async function () {
   global.ResizeObserver = class ResizeObserver {
     observe() {}
@@ -5,7 +6,6 @@ module.exports = async function () {
     disconnect() {}
   }
 
-  require('reflect-metadata')
   const { nop } = require('./utils/nopProxy')
   global.enableWebGLCanvas = nop
 
@@ -49,8 +49,16 @@ module.exports = async function () {
     return {
       useWorkspaceStore: () => ({
         shiftDown: false,
-        spinner: false
+        spinner: false,
+        focusMode: false,
+        toggleFocusMode: jest.fn()
       })
+    }
+  })
+
+  jest.mock('@/stores/workspace/bottomPanelStore', () => {
+    return {
+      toggleBottomPanel: jest.fn()
     }
   })
 

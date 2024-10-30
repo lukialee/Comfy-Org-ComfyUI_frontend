@@ -20,7 +20,7 @@ export const usePluginStore = defineStore('pluginStore', {
     pluginMap: useStorage('pluginMap', {} as Record<string, ComfyPlugin>),
     installedPluginIdList: useStorage(
       'installedPluginIdList',
-      [] as ComfyPlugin[]
+      [] as string[]
     )
   }),
 
@@ -35,11 +35,9 @@ export const usePluginStore = defineStore('pluginStore', {
         'cmf-Kx12g5k9': {
           id: 'cmf-Kx12g5k9',
           name: 'Example Plugin 1',
-          cover:
-            'https://i.ytimg.com/vi/E_GnupiwAeY/hq720.jpg?sqp=-oaymwEhCK4FEIIDSFryq4qpAxMIARUAAAAAGAElAADIQj0AgKJD&rs=AOn4CLCXrr0sTYOQlixFDX6OcQ9JgCfePA',
+          cover: 'https://i.ytimg.com/vi/E_GnupiwAeY/hq720.jpg?sqp=-oaymwEhCK4FEIIDSFryq4qpAxMIARUAAAAAGAElAADIQj0AgKJD&rs=AOn4CLCXrr0sTYOQlixFDX6OcQ9JgCfePA',
           url: 'http://192.168.0.218:5180/plugin1',
-          description:
-            'This is an example plugin that demonstrates how to create a new plugin.',
+          description: 'This is an example plugin that demonstrates how to create a new plugin.',
           author: 'ComfyUI',
           author_url: 'https://comfyui.com',
           version: '0.1.13',

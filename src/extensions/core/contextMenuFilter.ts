@@ -32,14 +32,14 @@ const ext = {
           const clickedComboValue = currentNode.widgets
             ?.filter(
               (w) =>
-                w.type === 'combo' && w.options.values.length === values.length
+                w.type === 'combo' && w.options.values?.length === values.length
             )
             .find((w) =>
-              w.options.values.every((v, i) => v === values[i])
+              w.options.values?.every((v, i) => v === values[i])
             )?.value
 
           let selectedIndex = clickedComboValue
-            ? values.findIndex((v) => v === clickedComboValue)
+            ? values.findIndex((v: string) => v === clickedComboValue)
             : 0
           if (selectedIndex < 0) {
             selectedIndex = 0
@@ -121,7 +121,7 @@ const ext = {
             // When filtering, recompute which items are visible for arrow up/down and maintain selection.
             displayedItems = items.filter((item) => {
               const isVisible =
-                !term || item.textContent.toLocaleLowerCase().includes(term)
+                !term || item.textContent?.toLocaleLowerCase().includes(term)
               item.style.display = isVisible ? 'block' : 'none'
               return isVisible
             })

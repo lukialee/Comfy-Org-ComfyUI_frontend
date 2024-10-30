@@ -47,7 +47,8 @@ const zExecutingWsMessage = z.object({
 })
 
 const zExecutedWsMessage = zExecutingWsMessage.extend({
-  outputs: zOutputs
+  output: zOutputs,
+  merge: z.boolean().optional()
 })
 
 const zExecutionWsMessageBase = z.object({
@@ -76,14 +77,6 @@ const zExecutionErrorWsMessage = zExecutionWsMessageBase.extend({
   current_outputs: z.any()
 })
 
-const zDownloadModelStatus = z.object({
-  status: z.string(),
-  progress_percentage: z.number(),
-  message: z.string(),
-  download_path: z.string(),
-  already_existed: z.boolean()
-})
-
 export type StatusWsMessageStatus = z.infer<typeof zStatusWsMessageStatus>
 export type StatusWsMessage = z.infer<typeof zStatusWsMessage>
 export type ProgressWsMessage = z.infer<typeof zProgressWsMessage>
@@ -98,8 +91,6 @@ export type ExecutionInterruptedWsMessage = z.infer<
   typeof zExecutionInterruptedWsMessage
 >
 export type ExecutionErrorWsMessage = z.infer<typeof zExecutionErrorWsMessage>
-
-export type DownloadModelStatus = z.infer<typeof zDownloadModelStatus>
 // End of ws messages
 
 const zPromptInputItem = z.object({
@@ -116,7 +107,8 @@ const zExtraPngInfo = z
   .passthrough()
 
 const zExtraData = z.object({
-  extra_pnginfo: zExtraPngInfo,
+  /** extra_pnginfo can be missing is backend execution gets a validation error. */
+  extra_pnginfo: zExtraPngInfo.optional(),
   client_id: z.string()
 })
 const zOutputsToExecute = z.array(zNodeId)
@@ -346,10 +338,10 @@ const zComfyOutputTypesSpec = z.array(
 )
 
 const zComfyNodeDef = z.object({
-  input: zComfyInputsSpec,
-  output: zComfyOutputTypesSpec,
-  output_is_list: z.array(z.boolean()),
-  output_name: z.array(z.string()),
+  input: zComfyInputsSpec.optional(),
+  output: zComfyOutputTypesSpec.optional(),
+  output_is_list: z.array(z.boolean()).optional(),
+  output_name: z.array(z.string()).optional(),
   output_tooltips: z.array(z.string()).optional(),
   name: z.string(),
   display_name: z.string(),
@@ -509,7 +501,8 @@ const zSettings = z.record(z.any()).and(
       'Comfy.Keybinding.UnsetBindings': z.array(zKeybinding),
       'Comfy.Keybinding.NewBindings': z.array(zKeybinding),
       'Comfy.Extension.Disabled': z.array(z.string()),
-      'Comfy.Settings.ExtensionPanel': z.boolean()
+      'Comfy.Settings.ExtensionPanel': z.boolean(),
+      'Comfy.LinkRenderMode': z.number()
     })
     .optional()
 )

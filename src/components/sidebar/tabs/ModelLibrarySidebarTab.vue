@@ -1,40 +1,59 @@
 <template>
-  <SidebarTabTemplate :title="$t('sideToolbar.modelLibrary')">
-    <template #tool-buttons> </template>
+  <SidebarTabTemplate
+    :title="$t('sideToolbar.modelLibrary')"
+    class="bg-[var(--p-tree-background)]"
+  >
+    <template #tool-buttons>
+      <Button
+        icon="pi pi-refresh"
+        @click="modelStore.loadModelFolders"
+        severity="secondary"
+        text
+        v-tooltip="$t('refresh')"
+      />
+      <Button
+        icon="pi pi-cloud-download"
+        @click="modelStore.loadModels"
+        severity="secondary"
+        text
+        v-tooltip="$t('loadAllFolders')"
+      />
+    </template>
+    <template #header>
+      <SearchBox
+        class="model-lib-search-box p-4"
+        v-model:modelValue="searchQuery"
+        :placeholder="$t('searchModels') + '...'"
+        @search="handleSearch"
+      />
+    </template>
     <template #body>
-      <div class="flex flex-col h-full">
-        <div class="flex-shrink-0">
-          <SearchBox
-            class="model-lib-search-box mx-4 mt-4"
-            v-model:modelValue="searchQuery"
-            :placeholder="$t('searchModels') + '...'"
-          />
-        </div>
-        <div class="flex-grow overflow-y-auto">
-          <TreeExplorer
-            class="model-lib-tree-explorer mt-1"
-            :roots="renderedRoot.children"
-            v-model:expandedKeys="expandedKeys"
-            @nodeClick="handleNodeClick"
-          >
-            <template #node="{ node }">
-              <ModelTreeLeaf :node="node" />
-            </template>
-          </TreeExplorer>
-        </div>
-      </div>
+      <TreeExplorer
+        class="model-lib-tree-explorer py-0"
+        :roots="renderedRoot.children"
+        v-model:expandedKeys="expandedKeys"
+      >
+        <template #node="{ node }">
+          <ModelTreeLeaf :node="node" />
+        </template>
+      </TreeExplorer>
     </template>
   </SidebarTabTemplate>
   <div id="model-library-model-preview-container" />
 </template>
 
 <script setup lang="ts">
+import Button from 'primevue/button'
 import SearchBox from '@/components/common/SearchBox.vue'
-import { useI18n } from 'vue-i18n'
 import TreeExplorer from '@/components/common/TreeExplorer.vue'
 import SidebarTabTemplate from '@/components/sidebar/tabs/SidebarTabTemplate.vue'
 import ModelTreeLeaf from '@/components/sidebar/tabs/modelLibrary/ModelTreeLeaf.vue'
-import { ComfyModelDef, useModelStore } from '@/stores/modelStore'
+import {
+  ComfyModelDef,
+  ModelFolder,
+  ResourceState,
+  useModelStore
+} from '@/stores/modelStore'
 import { useModelToNodeStore } from '@/stores/modelToNodeStore'
 import { useSettingStore } from '@/stores/settingStore'
 import { useTreeExpansion } from '@/hooks/treeHooks'
@@ -42,90 +61,56 @@ import type {
   RenderedTreeExplorerNode,
   TreeExplorerNode
 } from '@/types/treeExplorerTypes'
-import { computed, ref, type ComputedRef, watch, toRef } from 'vue'
+import { computed, ref, watch, toRef, onMounted, nextTick } from 'vue'
 import type { TreeNode } from 'primevue/treenode'
 import { app } from '@/scripts/app'
 import { buildTree } from '@/utils/treeUtil'
-const { t } = useI18n()
 const modelStore = useModelStore()
 const modelToNodeStore = useModelToNodeStore()
 const settingStore = useSettingStore()
 const searchQuery = ref<string>('')
 const expandedKeys = ref<Record<string, boolean>>({})
-const { toggleNodeOnEvent } = useTreeExpansion(expandedKeys)
+const { expandNode, toggleNodeOnEvent } = useTreeExpansion(expandedKeys)
 
-const root: ComputedRef<TreeNode> = computed(() => {
-  let modelList: ComfyModelDef[] = []
-  if (!modelStore.modelFolders.length) {
-    modelStore.getModelFolders()
+const filteredModels = ref<ComfyModelDef[]>([])
+const handleSearch = async (query: string) => {
+  if (!query) {
+    filteredModels.value = []
+    expandedKeys.value = {}
+    return
   }
-  if (settingStore.get('Comfy.ModelLibrary.AutoLoadAll')) {
-    for (let folder of modelStore.modelFolders) {
-      modelStore.getModelsInFolderCached(folder)
-    }
-  }
-  for (let folder of modelStore.modelFolders) {
-    const models = modelStore.modelStoreMap[folder]
-    if (models) {
-      if (Object.values(models.models).length) {
-        modelList.push(...Object.values(models.models))
-      } else {
-        const fakeModel = new ComfyModelDef('(No Content)', folder)
-        fakeModel.is_fake_object = true
-        modelList.push(fakeModel)
-      }
-    } else {
-      const fakeModel = new ComfyModelDef('Loading', folder)
-      fakeModel.is_fake_object = true
-      modelList.push(fakeModel)
-    }
-  }
-  if (searchQuery.value) {
-    const search = searchQuery.value.toLocaleLowerCase()
-    modelList = modelList.filter((model: ComfyModelDef) => {
-      return model.searchable.includes(search)
-    })
-  }
-  const tree: TreeNode = buildTree(modelList, (model: ComfyModelDef) => {
-    return [
-      model.directory,
-      ...model.file_name.replaceAll('\\', '/').split('/')
-    ]
+  // Load all models to ensure we have the latest data
+  await modelStore.loadModels()
+  const search = query.toLocaleLowerCase()
+  filteredModels.value = modelStore.models.filter((model: ComfyModelDef) => {
+    return model.searchable.includes(search)
   })
-  return tree
+
+  nextTick(() => {
+    expandNode(root.value)
+  })
+}
+
+type ModelOrFolder = ComfyModelDef | ModelFolder
+
+const root = computed<TreeNode>(() => {
+  const allNodes: ModelOrFolder[] = [
+    ...modelStore.modelFolders,
+    ...(searchQuery.value ? filteredModels.value : modelStore.models)
+  ]
+  return buildTree(allNodes, (modelOrFolder: ModelOrFolder) =>
+    modelOrFolder.key.split('/')
+  )
 })
 
-const renderedRoot = computed<TreeExplorerNode<ComfyModelDef>>(() => {
+const renderedRoot = computed<TreeExplorerNode<ModelOrFolder>>(() => {
   const nameFormat = settingStore.get('Comfy.ModelLibrary.NameFormat')
-  const fillNodeInfo = (node: TreeNode): TreeExplorerNode<ComfyModelDef> => {
+  const fillNodeInfo = (node: TreeNode): TreeExplorerNode<ModelOrFolder> => {
     const children = node.children?.map(fillNodeInfo)
     const model: ComfyModelDef | null =
       node.leaf && node.data ? node.data : null
-    if (model?.is_fake_object) {
-      if (model.file_name === '(No Content)') {
-        return {
-          key: node.key,
-          label: t('noContent'),
-          leaf: true,
-          data: node.data,
-          getIcon: (node: TreeExplorerNode<ComfyModelDef>) => {
-            return 'pi pi-file'
-          },
-          children: []
-        }
-      } else {
-        return {
-          key: node.key,
-          label: t('loading') + '...',
-          leaf: true,
-          data: node.data,
-          getIcon: (node: TreeExplorerNode<ComfyModelDef>) => {
-            return 'pi pi-spin pi-spinner'
-          },
-          children: []
-        }
-      }
-    }
+    const folder: ModelFolder | null =
+      !node.leaf && node.data ? node.data : null
 
     return {
       key: node.key,
@@ -136,34 +121,29 @@ const renderedRoot = computed<TreeExplorerNode<ComfyModelDef>>(() => {
         : node.label,
       leaf: node.leaf,
       data: node.data,
-      getIcon: (node: TreeExplorerNode<ComfyModelDef>) => {
-        if (node.leaf) {
-          if (node.data && node.data.image) {
-            return 'pi pi-fake-spacer'
-          }
-          return 'pi pi-file'
+      getIcon: () => {
+        if (model) {
+          return model.image ? 'pi pi-image' : 'pi pi-file'
         }
+        if (folder) {
+          return folder.state === ResourceState.Loading
+            ? 'pi pi-spin pi-spinner'
+            : 'pi pi-folder'
+        }
+        return 'pi pi-folder'
       },
-      getBadgeText: (node: TreeExplorerNode<ComfyModelDef>) => {
-        if (node.leaf) {
+      getBadgeText: () => {
+        // Return null to apply default badge text
+        // Return empty string to hide badge
+        if (!folder) {
           return null
         }
-        if (node.children?.length === 1) {
-          const onlyChild = node.children[0]
-          if (onlyChild.data?.is_fake_object) {
-            if (onlyChild.data.file_name === '(No Content)') {
-              return '0'
-            } else if (onlyChild.data.file_name === 'Loading') {
-              return '?'
-            }
-          }
-        }
-        return null
+        return folder.state === ResourceState.Loaded ? null : ''
       },
       children,
       draggable: node.leaf,
       handleClick: (
-        node: RenderedTreeExplorerNode<ComfyModelDef>,
+        node: RenderedTreeExplorerNode<ModelOrFolder>,
         e: MouseEvent
       ) => {
         if (node.leaf) {
@@ -179,23 +159,14 @@ const renderedRoot = computed<TreeExplorerNode<ComfyModelDef>>(() => {
               widget.value = model.file_name
             }
           }
+        } else {
+          toggleNodeOnEvent(e, node)
         }
       }
     }
   }
   return fillNodeInfo(root.value)
 })
-
-const handleNodeClick = (
-  node: RenderedTreeExplorerNode<ComfyModelDef>,
-  e: MouseEvent
-) => {
-  if (node.leaf) {
-    // TODO
-  } else {
-    toggleNodeOnEvent(e, node)
-  }
-}
 
 watch(
   toRef(expandedKeys, 'value'),
@@ -205,24 +176,24 @@ watch(
         const folderPath = key.split('/').slice(1).join('/')
         if (folderPath && !folderPath.includes('/')) {
           // Trigger (async) load of model data for this folder
-          modelStore.getModelsInFolderCached(folderPath)
+          modelStore.getLoadedModelFolder(folderPath)
         }
       }
     })
   },
   { deep: true }
 )
+
+onMounted(async () => {
+  if (settingStore.get('Comfy.ModelLibrary.AutoLoadAll')) {
+    await modelStore.loadModels()
+  }
+})
 </script>
 
-<style>
-.pi-fake-spacer {
+<style scoped>
+:deep(.pi-fake-spacer) {
   height: 1px;
   width: 16px;
-}
-</style>
-
-<style scoped>
-:deep(.comfy-vue-side-bar-body) {
-  background: var(--p-tree-background);
 }
 </style>

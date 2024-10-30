@@ -2,6 +2,10 @@ import { createI18n } from 'vue-i18n'
 
 const messages = {
   en: {
+    download: 'Download',
+    loadAllFolders: 'Load All Folders',
+    refresh: 'Refresh',
+    terminal: 'Terminal',
     videoFailedToLoad: 'Video failed to load',
     extensionName: 'Extension Name',
     reloadToApplyChanges: 'Reload to apply changes',
@@ -49,7 +53,6 @@ const messages = {
     noResultsFound: 'No Results Found',
     searchFailedMessage:
       "We couldn't find any settings matching your search. Try adjusting your search terms.",
-    noContent: '(No Content)',
     noTasksFound: 'No Tasks Found',
     noTasksFoundMessage: 'There are no tasks in the queue.',
     newFolder: 'New Folder',
@@ -92,7 +95,8 @@ const messages = {
       refresh: 'Refresh node definitions',
       clipspace: 'Open Clipspace',
       resetView: 'Reset canvas view',
-      clear: 'Clear workflow'
+      clear: 'Clear workflow',
+      toggleBottomPanel: 'Toggle Bottom Panel'
     },
     templateWorkflows: {
       title: 'Get Started with a Template',
@@ -113,6 +117,10 @@ const messages = {
     }
   },
   zh: {
+    download: '下载',
+    loadAllFolders: '加载所有文件夹',
+    refresh: '刷新',
+    terminal: '终端',
     videoFailedToLoad: '视频加载失败',
     extensionName: '扩展名称',
     reloadToApplyChanges: '重新加载以应用更改',
@@ -147,7 +155,7 @@ const messages = {
     delete: '删除',
     rename: '重命名',
     customize: '定制',
-    experimental: '测试',
+    experimental: 'BETA',
     deprecated: '弃用',
     loadWorkflow: '加载工作流',
     goToNode: '前往节点',
@@ -201,7 +209,8 @@ const messages = {
       refresh: '刷新节点',
       clipspace: '打开剪贴板',
       resetView: '重置画布视图',
-      clear: '清空工作流'
+      clear: '清空工作流',
+      toggleBottomPanel: '底部面板'
     },
     templateWorkflows: {
       title: '从模板开始',
@@ -219,6 +228,123 @@ const messages = {
       selectMode: '选择模式',
       panMode: '平移模式',
       toggleLinkVisibility: '切换链接可见性'
+    }
+  },
+  ru: {
+    download: 'Скачать',
+    refresh: 'Обновить',
+    loadAllFolders: 'Загрузить все папки',
+    terminal: 'Терминал',
+    videoFailedToLoad: 'Видео не удалось загрузить',
+    extensionName: 'Название расширения',
+    reloadToApplyChanges: 'Перезагрузите, чтобы применить изменения',
+    insert: 'Вставить',
+    systemInfo: 'Информация о системе',
+    devices: 'Устройства',
+    about: 'О',
+    add: 'Добавить',
+    confirm: 'Подтвердить',
+    reset: 'Сбросить',
+    resetKeybindingsTooltip: 'Сбросить сочетания клавиш по умолчанию',
+    customizeFolder: 'Настроить папку',
+    icon: 'Иконка',
+    color: 'Цвет',
+    bookmark: 'Закладка',
+    folder: 'Папка',
+    star: 'Звёздочка',
+    heart: 'Сердце',
+    file: 'Файл',
+    inbox: 'Входящие',
+    box: 'Ящик',
+    briefcase: 'Чемодан',
+    error: 'Ошибка',
+    loading: 'Загрузка',
+    findIssues: 'Найти Issue',
+    copyToClipboard: 'Копировать в буфер обмена',
+    openNewIssue: 'Открыть новый Issue',
+    showReport: 'Показать отчёт',
+    imageFailedToLoad: 'Изображение не удалось загрузить',
+    reconnecting: 'Переподключение',
+    reconnected: 'Переподключено',
+    delete: 'Удалить',
+    rename: 'Переименовать',
+    customize: 'Настроить',
+    experimental: 'БЕТА',
+    deprecated: 'УСТАР',
+    loadWorkflow: 'Загрузить рабочий процесс',
+    goToNode: 'Перейти к узлу',
+    settings: 'Настройки',
+    searchWorkflows: 'Поиск рабочих процессов',
+    searchSettings: 'Поиск настроек',
+    searchNodes: 'Поиск узлов',
+    searchModels: 'Поиск моделей',
+    searchKeybindings: 'Поиск сочетаний клавиш',
+    noResultsFound: 'Ничего не найдено',
+    searchFailedMessage:
+      'Не удалось найти ни одной настройки, соответствующей вашему запросу. Попробуйте скорректировать поисковый запрос.',
+    noContent: '(Нет контента)',
+    noTasksFound: 'Задачи не найдены',
+    noTasksFoundMessage: 'В очереди нет задач.',
+    newFolder: 'Новая папка',
+    sideToolbar: {
+      themeToggle: 'Переключить тему',
+      queue: 'Очередь',
+      nodeLibrary: 'Библиотека узлов',
+      workflows: 'Рабочие процессы',
+      browseTemplates: 'Просмотреть примеры шаблонов',
+      openWorkflow: 'Открыть рабочий процесс в локальной файловой системе',
+      newBlankWorkflow: 'Создайте новый пустой рабочий процесс',
+      nodeLibraryTab: {
+        sortOrder: 'Порядок сортировки'
+      },
+      modelLibrary: 'Библиотека моделей',
+      queueTab: {
+        showFlatList: 'Показать плоский список',
+        backToAllTasks: 'Вернуться ко всем задачам',
+        containImagePreview: 'Предпросмотр заливающего изображения',
+        coverImagePreview: 'Предпросмотр подходящего изображения',
+        clearPendingTasks: 'Очистить отложенные задачи'
+      }
+    },
+    menu: {
+      batchCount: 'Количество пакетов',
+      batchCountTooltip:
+        'Количество раз, когда генерация рабочего процесса должна быть помещена в очередь',
+      autoQueue: 'Автоочередь',
+      disabled: 'Отключено',
+      disabledTooltip:
+        'Рабочий процесс не будет автоматически помещён в очередь',
+      instant: 'Мгновенно',
+      instantTooltip:
+        'Рабочий процесс будет помещён в очередь сразу же после завершения генерации',
+      change: 'При изменении',
+      changeTooltip:
+        'Рабочий процесс будет поставлен в очередь после внесения изменений',
+      queueWorkflow: 'Очередь рабочего процесса',
+      queueWorkflowFront: 'Очередь рабочего процесса (Вставка спереди)',
+      queue: 'Очередь',
+      interrupt: 'Отменить текущее выполнение',
+      refresh: 'Обновить определения узлов',
+      clipspace: 'Открыть Clipspace',
+      resetView: 'Сбросить вид холста',
+      clear: 'Очистить рабочий процесс'
+    },
+    templateWorkflows: {
+      title: 'Начните работу с шаблона',
+      template: {
+        default: 'Image Generation',
+        image2image: 'Image to Image',
+        upscale: '2 Pass Upscale',
+        flux_schnell: 'Flux Schnell'
+      }
+    },
+    graphCanvasMenu: {
+      zoomIn: 'Увеличить',
+      zoomOut: 'Уменьшить',
+      resetView: 'Сбросить вид',
+      selectMode: 'Выбрать режим',
+      panMode: 'Режим панорамирования',
+      toggleLinkVisibility: 'Переключить видимость ссылок'
     }
   }
   // TODO: Add more languages

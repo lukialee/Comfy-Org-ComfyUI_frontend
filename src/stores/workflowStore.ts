@@ -32,7 +32,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
   // Bookmarked workflows tree is flat.
   const bookmarkedWorkflowsTree = computed(() =>
     buildTree(bookmarkedWorkflows.value, (workflow: ComfyWorkflow) => [
-      workflow.path
+      workflow.path ?? 'temporary_workflow'
     ])
   )
   // Open workflows tree is flat.

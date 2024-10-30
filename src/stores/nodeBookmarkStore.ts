@@ -15,21 +15,24 @@ export const useNodeBookmarkStore = defineStore('nodeBookmark', () => {
   const nodeDefStore = useNodeDefStore()
 
   const migrateLegacyBookmarks = () => {
-    settingStore
-      .get('Comfy.NodeLibrary.Bookmarks')
-      .forEach((bookmark: string) => {
-        // If the bookmark is a folder, add it as a bookmark
-        if (bookmark.endsWith('/')) {
-          addBookmark(bookmark)
-          return
-        }
-        const category = bookmark.split('/').slice(0, -1).join('/')
-        const displayName = bookmark.split('/').pop()
-        const nodeDef = nodeDefStore.nodeDefsByDisplayName[displayName]
+    const legacyBookmarks = settingStore.get('Comfy.NodeLibrary.Bookmarks')
+    if (!legacyBookmarks.length) {
+      return
+    }
 
-        if (!nodeDef) return
-        addBookmark(`${category === '' ? '' : category + '/'}${nodeDef.name}`)
-      })
+    legacyBookmarks.forEach((bookmark: string) => {
+      // If the bookmark is a folder, add it as a bookmark
+      if (bookmark.endsWith('/')) {
+        addBookmark(bookmark)
+        return
+      }
+      const category = bookmark.split('/').slice(0, -1).join('/')
+      const displayName = bookmark.split('/').pop() ?? ''
+      const nodeDef = nodeDefStore.nodeDefsByDisplayName[displayName]
+
+      if (!nodeDef) return
+      addBookmark(`${category === '' ? '' : category + '/'}${nodeDef.name}`)
+    })
     settingStore.set('Comfy.NodeLibrary.Bookmarks', [])
   }
 
@@ -66,7 +69,7 @@ export const useNodeBookmarkStore = defineStore('nodeBookmark', () => {
         if (bookmark.endsWith('/')) return createDummyFolderNodeDef(bookmark)
 
         const parts = bookmark.split('/')
-        const name = parts.pop()
+        const name = parts.pop() ?? ''
         const category = parts.join('/')
         const srcNodeDef = nodeDefStore.nodeDefsByName[name]
         if (!srcNodeDef) {
@@ -109,6 +112,10 @@ export const useNodeBookmarkStore = defineStore('nodeBookmark', () => {
   ) => {
     if (!folderNode.isDummyFolder) {
       throw new Error('Cannot rename non-folder node')
+    }
+
+    if (newName.includes('/')) {
+      throw new Error('Folder name cannot contain "/"')
     }
 
     const newNodePath =
@@ -182,7 +189,7 @@ export const useNodeBookmarkStore = defineStore('nodeBookmark', () => {
     settingStore.set('Comfy.NodeLibrary.BookmarksCustomization', {
       ...bookmarksCustomization.value,
       [nodePath]: undefined
-    })
+    } as Record<string, BookmarkCustomization>)
   }
 
   const renameBookmarkCustomization = (

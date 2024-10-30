@@ -1,3 +1,6 @@
+// @ts-strict-ignore
+// Disabled because of https://github.com/Comfy-Org/ComfyUI_frontend/issues/1184
+
 import { mount } from '@vue/test-utils'
 import { expect, describe, it } from 'vitest'
 import ResultGallery from '../ResultGallery.vue'

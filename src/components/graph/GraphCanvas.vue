@@ -4,6 +4,9 @@
       <template #side-bar-panel>
         <SideToolbar />
       </template>
+      <template #bottom-panel>
+        <BottomPanel />
+      </template>
       <template #graph-canvas-panel>
         <GraphCanvasMenu v-if="canvasMenuEnabled" />
       </template>
@@ -14,23 +17,21 @@
   </teleport>
   <NodeSearchboxPopover />
   <NodeTooltip v-if="tooltipEnabled" />
+  <NodeBadge />
 </template>
 
 <script setup lang="ts">
 import TitleEditor from '@/components/graph/TitleEditor.vue'
 import SideToolbar from '@/components/sidebar/SideToolbar.vue'
+import BottomPanel from '@/components/bottomPanel/BottomPanel.vue'
 import LiteGraphCanvasSplitterOverlay from '@/components/LiteGraphCanvasSplitterOverlay.vue'
 import NodeSearchboxPopover from '@/components/searchbox/NodeSearchBoxPopover.vue'
 import NodeTooltip from '@/components/graph/NodeTooltip.vue'
-import { ref, computed, onUnmounted, onMounted, watchEffect } from 'vue'
+import NodeBadge from '@/components/graph/NodeBadge.vue'
+import { ref, computed, onMounted, watchEffect } from 'vue'
 import { app as comfyApp } from '@/scripts/app'
 import { useSettingStore } from '@/stores/settingStore'
-import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
-import {
-  ComfyNodeDefImpl,
-  useNodeDefStore,
-  useNodeFrequencyStore
-} from '@/stores/nodeDefStore'
+import { ComfyNodeDefImpl, useNodeDefStore } from '@/stores/nodeDefStore'
 import { useWorkspaceStore } from '@/stores/workspaceStateStore'
 import {
   LiteGraph,
@@ -44,7 +45,6 @@ import {
   LGraphBadge
 } from '@comfyorg/litegraph'
 import type { RenderedTreeExplorerNode } from '@/types/treeExplorerTypes'
-import { useNodeBookmarkStore } from '@/stores/nodeBookmarkStore'
 import { useCanvasStore } from '@/stores/graphStore'
 import { ComfyModelDef } from '@/stores/modelStore'
 import {
@@ -52,7 +52,7 @@ import {
   useModelToNodeStore
 } from '@/stores/modelToNodeStore'
 import GraphCanvasMenu from '@/components/graph/GraphCanvasMenu.vue'
-import { useKeybindingStore } from '@/stores/keybindingStore'
+import { usePragmaticDroppable } from '@/hooks/dndHooks'
 
 const emit = defineEmits(['ready'])
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -62,7 +62,9 @@ const workspaceStore = useWorkspaceStore()
 const canvasStore = useCanvasStore()
 const modelToNodeStore = useModelToNodeStore()
 const betaMenuEnabled = computed(
-  () => settingStore.get('Comfy.UseNewMenu') !== 'Disabled'
+  () =>
+    settingStore.get('Comfy.UseNewMenu') !== 'Disabled' &&
+    !workspaceStore.focusMode
 )
 const canvasMenuEnabled = computed(() =>
   settingStore.get('Comfy.Graph.CanvasMenu')
@@ -106,14 +108,22 @@ watchEffect(() => {
 })
 
 watchEffect(() => {
+  const linkRenderMode = settingStore.get('Comfy.LinkRenderMode')
+  if (canvasStore.canvas) {
+    canvasStore.canvas.links_render_mode = linkRenderMode
+    canvasStore.canvas.setDirty(/* fg */ false, /* bg */ true)
+  }
+})
+
+watchEffect(() => {
   if (!canvasStore.canvas) return
 
-  if (canvasStore.canvas.dragging_canvas) {
+  if (canvasStore.canvas.state.draggingCanvas) {
     canvasStore.canvas.canvas.style.cursor = 'grabbing'
     return
   }
 
-  if (canvasStore.canvas.read_only) {
+  if (canvasStore.canvas.state.readOnly) {
     canvasStore.canvas.canvas.style.cursor = 'grab'
     return
   }
@@ -121,7 +131,60 @@ watchEffect(() => {
   canvasStore.canvas.canvas.style.cursor = 'default'
 })
 
-let dropTargetCleanup = () => {}
+usePragmaticDroppable(() => canvasRef.value, {
+  onDrop: (event) => {
+    const loc = event.location.current.input
+    const dndData = event.source.data
+
+    if (dndData.type === 'tree-explorer-node') {
+      const node = dndData.data as RenderedTreeExplorerNode
+      if (node.data instanceof ComfyNodeDefImpl) {
+        const nodeDef = node.data
+        // Add an offset on x to make sure after adding the node, the cursor
+        // is on the node (top left corner)
+        const pos = comfyApp.clientPosToCanvasPos([
+          loc.clientX - 20,
+          loc.clientY
+        ])
+        comfyApp.addNodeOnGraph(nodeDef, { pos })
+      } else if (node.data instanceof ComfyModelDef) {
+        const model = node.data
+        const pos = comfyApp.clientPosToCanvasPos([loc.clientX, loc.clientY])
+        const nodeAtPos = comfyApp.graph.getNodeOnPos(pos[0], pos[1])
+        let targetProvider: ModelNodeProvider | null = null
+        let targetGraphNode: LGraphNode | null = null
+        if (nodeAtPos) {
+          const providers = modelToNodeStore.getAllNodeProviders(
+            model.directory
+          )
+          for (const provider of providers) {
+            if (provider.nodeDef.name === nodeAtPos.comfyClass) {
+              targetGraphNode = nodeAtPos
+              targetProvider = provider
+            }
+          }
+        }
+        if (!targetGraphNode) {
+          const provider = modelToNodeStore.getNodeProvider(model.directory)
+          if (provider) {
+            targetGraphNode = comfyApp.addNodeOnGraph(provider.nodeDef, {
+              pos
+            })
+            targetProvider = provider
+          }
+        }
+        if (targetGraphNode) {
+          const widget = targetGraphNode.widgets.find(
+            (widget) => widget.name === targetProvider.key
+          )
+          if (widget) {
+            widget.value = model.file_name
+          }
+        }
+      }
+    }
+  }
+})
 
 onMounted(async () => {
   // Backward compatible
@@ -146,78 +209,6 @@ onMounted(async () => {
   window['app'] = comfyApp
   window['graph'] = comfyApp.graph
 
-  dropTargetCleanup = dropTargetForElements({
-    element: canvasRef.value,
-    onDrop: (event) => {
-      const loc = event.location.current.input
-      const dndData = event.source.data
-
-      if (dndData.type === 'tree-explorer-node') {
-        const node = dndData.data as RenderedTreeExplorerNode
-        if (node.data instanceof ComfyNodeDefImpl) {
-          const nodeDef = node.data
-          // Add an offset on x to make sure after adding the node, the cursor
-          // is on the node (top left corner)
-          const pos = comfyApp.clientPosToCanvasPos([
-            loc.clientX - 20,
-            loc.clientY
-          ])
-          comfyApp.addNodeOnGraph(nodeDef, { pos })
-        } else if (node.data instanceof ComfyModelDef) {
-          const model = node.data
-          const pos = comfyApp.clientPosToCanvasPos([loc.clientX, loc.clientY])
-          const nodeAtPos = comfyApp.graph.getNodeOnPos(pos[0], pos[1])
-          let targetProvider: ModelNodeProvider | null = null
-          let targetGraphNode: LGraphNode | null = null
-          if (nodeAtPos) {
-            const providers = modelToNodeStore.getAllNodeProviders(
-              model.directory
-            )
-            for (const provider of providers) {
-              if (provider.nodeDef.name === nodeAtPos.comfyClass) {
-                targetGraphNode = nodeAtPos
-                targetProvider = provider
-              }
-            }
-          }
-          if (!targetGraphNode) {
-            const provider = modelToNodeStore.getNodeProvider(model.directory)
-            if (provider) {
-              targetGraphNode = comfyApp.addNodeOnGraph(provider.nodeDef, {
-                pos
-              })
-              targetProvider = provider
-            }
-          }
-          if (targetGraphNode) {
-            const widget = targetGraphNode.widgets.find(
-              (widget) => widget.name === targetProvider.key
-            )
-            if (widget) {
-              widget.value = model.file_name
-            }
-          }
-        }
-      }
-    }
-  })
-
-  // Load keybindings. This must be done after comfyApp loads settings.
-  useKeybindingStore().loadUserKeybindings()
-
-  // Migrate legacy bookmarks
-  useNodeBookmarkStore().migrateLegacyBookmarks()
-
-  // Explicitly initialize nodeSearchService to avoid indexing delay when
-  // node search is triggered
-  useNodeDefStore().nodeSearchService.endsWithFilterStartSequence('')
-
-  // Non-blocking load of node frequencies
-  useNodeFrequencyStore().loadNodeFrequencies()
   emit('ready')
-})
-
-onUnmounted(() => {
-  dropTargetCleanup()
 })
 </script>
