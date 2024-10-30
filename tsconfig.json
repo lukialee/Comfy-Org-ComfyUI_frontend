@@ -23,9 +23,9 @@
     "allowJs": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
-    "typeRoots": ["src/types", "node_modules/@types"],
+    "typeRoots": ["./src/types", "node_modules/@types"],
     "outDir": "./dist",
     "rootDir": "./",
 
@@ -36,10 +36,10 @@
     ]
   },
   "include": [
-    "src/**/*",
-    "src/**/*.vue",
-    "src/types/**/*.d.ts",
-    "tests-ui/**/*",
-    "global.d.ts"
+    "./src/**/*",
+    "./src/**/*.vue",
+    "./src/types/**/*.d.ts",
+    "./tests-ui/**/*",
+    "./global.d.ts"
   ]
 }

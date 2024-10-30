@@ -1,5 +1,6 @@
 import { defineConfig, Plugin } from 'vite'
 import type { UserConfigExport } from 'vitest/config'
+import { fileURLToPath } from 'url'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 import dotenv from "dotenv"
@@ -170,7 +171,7 @@ export default defineConfig({
 
   resolve: {
     alias: {
-      '@': '/src'
+      '@': path.resolve(__dirname, './src')
     }
   },
 
