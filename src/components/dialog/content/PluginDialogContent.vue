@@ -96,7 +96,7 @@
                 Enable
               </button>
               <button
-                @click="pluginStore.removeFromInstalledPluginList(plugin.id)"
+                @click="uninstallPlugin(plugin)"
                 class="cm-button danger flex items-center space-x-2"
               >
                 <i-ic-twotone-remove-from-queue class="w-6 h-6 opacity-35" />
@@ -150,6 +150,11 @@ const availablePluginList = computed(() => {
 const installPlugin = (plugin: ComfyPlugin) => {
   pluginStore.addToInstalledPluginList(plugin.id)
   pluginStore.enablePlugin(plugin.id, true)
+  currentPlugin.value = null
+}
+
+const uninstallPlugin = (plugin: ComfyPlugin) => {
+  pluginStore.removeFromInstalledPluginList(plugin.id)
   currentPlugin.value = null
 }
 

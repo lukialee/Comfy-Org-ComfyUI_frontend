@@ -15,13 +15,12 @@ export type ComfyPlugin = {
   visible?: boolean
 }
 
+export const instances: Record<string, any> = {}
+
 export const usePluginStore = defineStore('pluginStore', {
   state: () => ({
     pluginMap: useStorage('pluginMap', {} as Record<string, ComfyPlugin>),
-    installedPluginIdList: useStorage(
-      'installedPluginIdList',
-      [] as string[]
-    )
+    installedPluginIdList: useStorage('installedPluginIdList', [] as string[])
   }),
 
   actions: {
@@ -35,23 +34,47 @@ export const usePluginStore = defineStore('pluginStore', {
         'cmf-Kx12g5k9': {
           id: 'cmf-Kx12g5k9',
           name: 'Example Plugin 1',
-          cover: 'https://i.ytimg.com/vi/E_GnupiwAeY/hq720.jpg?sqp=-oaymwEhCK4FEIIDSFryq4qpAxMIARUAAAAAGAElAADIQj0AgKJD&rs=AOn4CLCXrr0sTYOQlixFDX6OcQ9JgCfePA',
+          cover: 'https://placehold.co/700x400',
           url: 'http://192.168.0.218:5180/plugin1',
-          description: 'This is an example plugin that demonstrates how to create a new plugin.',
+          description:
+            'This is an example plugin that demonstrates how to create a new plugin.',
           author: 'ComfyUI',
           author_url: 'https://comfyui.com',
           version: '0.1.13',
           verified: true
+        },
+        'cmf-15e96d46': {
+          id: 'cmf-15e96d46',
+          name: 'Example Plugin 2',
+          cover: 'https://placehold.co/700x400',
+          url: 'http://192.168.0.218:5180/plugin2',
+          description:
+            'This is an example plugin that demonstrates how to create a new plugin.',
+          author: 'ComfyUI',
+          author_url: 'https://comfyui.com',
+          version: '0.2.13',
+          verified: false
         }
       }
 
       const k = Object.keys(map)
+
       k.forEach((pluginId: string) => {
         const plugin = map[pluginId]
+
+        if (!this.pluginMap[plugin.id]) {
+          this.pluginMap[plugin.id] = plugin
+        }
+
+        const p = this.pluginMap[plugin.id]
+        const enabled = p.enabled
+        const visible = p.visible
+
+        // update plugin with enabled and visible
         this.pluginMap[plugin.id] = {
           ...plugin,
-          enabled: this.pluginMap[plugin.id].enabled,
-          visible: this.pluginMap[plugin.id].visible
+          enabled,
+          visible
         }
       })
 
@@ -76,10 +99,29 @@ export const usePluginStore = defineStore('pluginStore', {
     },
 
     removeFromInstalledPluginList(pluginId: string) {
-      const index = this.installedPluginIdList.indexOf(pluginId)
-      if (index !== -1) {
-        this.installedPluginIdList.splice(index, 1)
+      const instance = this.getInstance(pluginId)
+      if (instance) {
+        instance.destroy()
       }
+
+      setTimeout(() => {
+        const index = this.installedPluginIdList.indexOf(pluginId)
+        if (index !== -1) {
+          this.installedPluginIdList.splice(index, 1)
+        }
+      }, 100)
+    },
+
+    getInstance(pluginId: string): any | undefined {
+      return instances[pluginId]
+    },
+
+    attachInstance(pluginId: string, instance: any) {
+      instances[pluginId] = instance
+    },
+
+    detachInstance(pluginId: string) {
+      delete instances[pluginId]
     },
 
     setPluginVisibility(id: string, visible: boolean) {

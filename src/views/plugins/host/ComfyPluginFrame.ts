@@ -51,8 +51,8 @@ class ComfyPluginFrame {
   setOptions(options: ComfyPluginFrameOptions) {
     console.log('ComfyHost::setOptions', options)
     this.overlay.value = options.overlay === true ? true : false
-    this.width.value = options.width || 356
-    this.height.value = options.height || 600
+    this.width.value = options.width || 450
+    this.height.value = options.height || 760
   }
 
   setOverlay(overlay: boolean) {
@@ -134,14 +134,25 @@ class ComfyPluginFrame {
   }
 
   destroy() {
-    window.removeEventListener('message', this.handleMessage.bind(this))
-    this.eventListeners = {}
+    console.log('ComfyHost::destroy', this)
+    if (!this.iframe.value) return
 
-    if (this.iframe.value && this.iframe.value.parentNode) {
-      this.iframe.value.parentNode.removeChild(this.iframe.value)
-    }
+    this.sendMessage({
+      action: 'destroy',
+      payload: {}
+    })
 
-    this.iframe.value = null
+    /* wait a little bit before destroying the iframe */
+    setTimeout(() => {
+      window.removeEventListener('message', this.handleMessage.bind(this))
+      this.eventListeners = {}
+
+      if (this.iframe.value && this.iframe.value.parentNode) {
+        this.iframe.value.parentNode.removeChild(this.iframe.value)
+      }
+
+      this.iframe.value = null
+    }, 100)
   }
 
   resize(width: string, height: string) {

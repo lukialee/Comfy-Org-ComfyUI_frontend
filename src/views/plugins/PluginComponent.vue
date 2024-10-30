@@ -122,6 +122,8 @@ const reload = () => {
 }
 
 onMounted(() => {
+  console.log('**** PluginComponent::onMounted', pluginInstance)
+
   const pluginUrl = props.plugin.url
 
   pluginInstance.init()
@@ -142,7 +144,11 @@ onMounted(() => {
       console.log('Plugin Loaded')
     })
 
-    resize(450, 760)
+    if (pluginInstance.width.value && pluginInstance.height.value) {
+      resize(pluginInstance.width.value, pluginInstance.height.value)
+    } else {
+      resize(450, 760)
+    }
   }
 
   pluginInstance.on('close', close)
@@ -154,10 +160,20 @@ onMounted(() => {
   pluginInstance.on('handshake', (e: any) => {
     const { overlay, width, height } = e
     pluginInstance.setOptions({ overlay, width, height })
+
+    pluginInstance.sendMessage({
+      action: 'ready',
+      payload: {}
+    })
+
+    resize(width, height)
   })
+
+  pluginStore.attachInstance(props.plugin.id, pluginInstance)
 })
 
 onBeforeUnmount(() => {
+  pluginStore.detachInstance(props.plugin.id)
   pluginInstance.destroy()
 })
 </script>
