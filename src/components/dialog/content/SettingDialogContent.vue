@@ -1,25 +1,31 @@
 <template>
-  <div class="settings-container">
-    <div class="settings-sidebar">
-      <SearchBox
-        class="settings-search-box"
-        v-model:modelValue="searchQuery"
-        @search="handleSearch"
-        :placeholder="$t('searchSettings') + '...'"
-      />
-      <Listbox
-        v-model="activeCategory"
-        :options="categories"
-        optionLabel="label"
-        scrollHeight="100%"
-        :disabled="inSearch"
-        :pt="{ root: { class: 'border-none' } }"
-      />
-    </div>
-    <Divider layout="vertical" />
-    <div class="settings-content">
-      <Tabs :value="tabValue">
-        <TabPanels class="settings-tab-panels">
+  <div
+    class="SettingDialogContent w-[50vw] h-[60vh] max-w-[800px] flex flex-col text-xs md:text-sm overflow-hidden"
+  >
+    <div class="flex-1 w-full scrollable">
+      <Tabs :value="tabValue" class="overflow-hidden">
+        <div
+          class="absolute bg-zinc-900 w-full z-10 top-16 left-0 flex items-center justify-between border-b border-[var(--p-divider-border-color)] space-x-4"
+        >
+          <TabList class="flex-1 h-16">
+            <Tab
+              v-for="category in categories"
+              :key="category.key"
+              :value="category.label"
+              class="text-xs md:text-sm h-16 px-2 md:px-5"
+            >
+              {{ category.label }}
+            </Tab>
+          </TabList>
+          <SearchBox
+            class="w-48 md:w-64 pr-4 md:pr-5 text-xs md:text-sm"
+            v-model:modelValue="searchQuery"
+            @search="handleSearch"
+            :placeholder="$t('searchSettings') + '...'"
+          />
+        </div>
+
+        <TabPanels class="px-0 pt-20 scrollable">
           <TabPanel key="search-results" value="Search Results">
             <div v-if="searchResults.length > 0">
               <SettingGroup
@@ -68,10 +74,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import Listbox from 'primevue/listbox'
 import Tabs from 'primevue/tabs'
 import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
 import Divider from 'primevue/divider'
 import { SettingTreeNode, useSettingStore } from '@/stores/settingStore'
 import { SettingParams } from '@/types/settingTypes'
@@ -181,77 +188,3 @@ const tabValue = computed(() =>
   inSearch.value ? 'Search Results' : activeCategory.value?.label
 )
 </script>
-
-<style>
-.settings-tab-panels {
-  padding-top: 0px !important;
-}
-</style>
-
-<style scoped>
-.settings-container {
-  display: flex;
-  height: 70vh;
-  width: 60vw;
-  max-width: 1000px;
-  overflow: hidden;
-  /* Prevents container from scrolling */
-}
-
-.settings-sidebar {
-  width: 250px;
-  flex-shrink: 0;
-  /* Prevents sidebar from shrinking */
-  overflow-y: auto;
-  padding: 10px;
-}
-
-.settings-search-box {
-  width: 100%;
-  margin-bottom: 10px;
-}
-
-.settings-content {
-  flex-grow: 1;
-  overflow-y: auto;
-  /* Allows vertical scrolling */
-}
-
-/* Ensure the Listbox takes full width of the sidebar */
-.settings-sidebar :deep(.p-listbox) {
-  width: 100%;
-}
-
-/* Optional: Style scrollbars for webkit browsers */
-.settings-sidebar::-webkit-scrollbar,
-.settings-content::-webkit-scrollbar {
-  width: 1px;
-}
-
-.settings-sidebar::-webkit-scrollbar-thumb,
-.settings-content::-webkit-scrollbar-thumb {
-  background-color: transparent;
-}
-
-@media (max-width: 768px) {
-  .settings-container {
-    flex-direction: column;
-    height: auto;
-  }
-
-  .settings-sidebar {
-    width: 100%;
-  }
-}
-
-/* Show a separator line above the Keybinding tab */
-/* This indicates the start of custom setting panels */
-.settings-sidebar :deep(.p-listbox-option[aria-label='Keybinding']) {
-  position: relative;
-}
-
-.settings-sidebar :deep(.p-listbox-option[aria-label='Keybinding'])::before {
-  @apply content-[''] top-0 left-0 absolute w-full;
-  border-top: 1px solid var(--p-divider-border-color);
-}
-</style>

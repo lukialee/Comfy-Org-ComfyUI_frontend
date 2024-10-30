@@ -3,7 +3,7 @@
     <IconField>
       <InputIcon :class="props.icon" />
       <InputText
-        class="search-box-input"
+        class="search-box-input w-full text-xs md:text-sm pl-10 py-2.5 rounded-full"
         :class="{ ['with-filter']: props.filterIcon }"
         @input="handleInput"
         :modelValue="props.modelValue"
@@ -81,11 +81,6 @@ const handleInput = (event: Event) => {
 </script>
 
 <style scoped>
-.search-box-input {
-  width: 100%;
-  padding-left: 36px;
-}
-
 .search-box-input.with-filter {
   padding-right: 36px;
 }

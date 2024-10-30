@@ -6,6 +6,7 @@
   <GlobalToast />
   <UnloadWindowConfirmDialog />
   <BrowserTabTitle />
+  <PluginManager />
 </template>
 
 <script setup lang="ts">
@@ -34,6 +35,7 @@ import TopMenubar from '@/components/topbar/TopMenubar.vue'
 import { setupAutoQueueHandler } from '@/services/autoQueueService'
 import { useKeybindingStore } from '@/stores/keybindingStore'
 import { useSidebarTabStore } from '@/stores/workspace/sidebarTabStore'
+import PluginManager from '@/views/plugins/PluginManager.vue'
 
 setupAutoQueueHandler()
 

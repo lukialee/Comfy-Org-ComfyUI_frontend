@@ -13,6 +13,7 @@
       />
       <div class="side-tool-bar-end">
         <SidebarThemeToggleIcon />
+        <SidebarPluginsIcon />
         <SidebarSettingsToggleIcon />
       </div>
     </nav>
@@ -37,6 +38,7 @@
 <script setup lang="ts">
 import SidebarIcon from './SidebarIcon.vue'
 import SidebarThemeToggleIcon from './SidebarThemeToggleIcon.vue'
+import SidebarPluginsIcon from './SidebarPluginsIcon.vue'
 import SidebarSettingsToggleIcon from './SidebarSettingsToggleIcon.vue'
 import { computed, onBeforeUnmount } from 'vue'
 import { useWorkspaceStore } from '@/stores/workspaceStateStore'

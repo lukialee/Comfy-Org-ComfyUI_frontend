@@ -1,18 +1,8 @@
 <template>
-  <div>
-    <h2>
-      <i class="pi pi-cog"></i>
+  <div class="flex-1 h-12">
+    <h2 class="flex items-center space-x-2 capitalize text-xl font-medium">
+      <i-lucide-cog class="w-8 h-8 opacity-50" />
       <span>{{ $t('settings') }}</span>
     </h2>
   </div>
 </template>
-
-<style scoped>
-.pi-cog {
-  font-size: 1.25rem;
-  margin-right: 0.5rem;
-}
-.version-tag {
-  margin-left: 0.5rem;
-}
-</style>

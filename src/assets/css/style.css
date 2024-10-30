@@ -1,8 +1,31 @@
 @layer primevue, tailwind-utilities;
 
 @layer tailwind-utilities {
+  @tailwind base;
   @tailwind components;
   @tailwind utilities;
+}
+
+@layer base {
+  /*
+   * restore some default tailwind behaviors that has been broken
+   * as preflight is now disabled in tailwind.config.js
+   * TODO: please fix any visual issues caused by this in other components
+   */
+  *, ::before, ::after {
+    border-width: 0;
+    border-style: solid;
+    border-color: theme('borderColor.DEFAULT', currentColor);
+  }
+
+  blockquote, dl, dd, h1, h2, h3, h4, h5, h6, hr, figure, p, pre {
+    margin: 0;
+  }
+
+  ul, ol, li {
+    padding: 0;
+    list-style: none;
+  }
 }
 
 :root {
@@ -75,6 +98,42 @@ body {
   |                                                        |
   +------------------+------------------+------------------+
 */
+
+.cm-button {
+  @apply bg-blue-700 hover:bg-blue-600 px-4 py-2 rounded-md;
+  @apply text-white text-sm font-semibold border-none cursor-pointer;
+}
+.cm-button.danger {
+  @apply bg-red-700 hover:bg-red-600 px-4 py-2 rounded-md;
+  @apply text-white text-sm font-semibold border-none;
+}
+.cm-button.gray {
+  @apply bg-zinc-700 hover:bg-zinc-600 px-4 py-2 rounded-md;
+  @apply text-white text-sm font-semibold border-none;
+}
+.cm-button.disabled, .cm-button[disabled] {
+  @apply bg-gray-400 hover:bg-gray-400 px-4 py-2 rounded-md;
+  @apply text-zinc-400 text-sm font-semibold border-none cursor-not-allowed;
+}
+.cm-button.sm {
+  @apply px-3 py-1 rounded text-xs;
+}
+.cm-button.lg {
+  @apply px-5 py-2.5 rounded text-base;
+}
+
+.scrollable {
+  overflow-y: auto;
+}
+
+/* style scrollbars for webkit browsers */
+.scrollable::-webkit-scrollbar {
+  width: 1px;
+}
+
+.scrollable::-webkit-scrollbar-thumb {
+  background-color: transparent;
+}
 
 .comfyui-body-top {
   order: -5;
