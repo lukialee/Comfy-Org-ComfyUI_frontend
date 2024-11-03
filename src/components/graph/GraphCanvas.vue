@@ -32,7 +32,7 @@ import { ref, computed, onMounted, watchEffect } from 'vue'
 import { app as comfyApp } from '@/scripts/app'
 import { useSettingStore } from '@/stores/settingStore'
 import { ComfyNodeDefImpl, useNodeDefStore } from '@/stores/nodeDefStore'
-import { useWorkspaceStore } from '@/stores/workspaceStateStore'
+import { useWorkspaceStore } from '@/stores/workspaceStore'
 import {
   LiteGraph,
   LGraph,
@@ -53,6 +53,8 @@ import {
 } from '@/stores/modelToNodeStore'
 import GraphCanvasMenu from '@/components/graph/GraphCanvasMenu.vue'
 import { usePragmaticDroppable } from '@/hooks/dndHooks'
+import { useWorkflowStore } from '@/stores/workflowStore'
+import { setStorageValue } from '@/scripts/utils'
 
 const emit = defineEmits(['ready'])
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -83,6 +85,16 @@ watchEffect(() => {
   if (canvasStore.canvas) {
     canvasStore.canvas.zoom_speed = zoomSpeed
   }
+})
+
+watchEffect(() => {
+  LiteGraph.snaps_for_comfy = settingStore.get('Comfy.Node.AutoSnapLinkToSlot')
+})
+
+watchEffect(() => {
+  LiteGraph.snap_highlights_node = settingStore.get(
+    'Comfy.Node.SnapHighlightsNode'
+  )
 })
 
 watchEffect(() => {
@@ -129,6 +141,14 @@ watchEffect(() => {
   }
 
   canvasStore.canvas.canvas.style.cursor = 'default'
+})
+
+const workflowStore = useWorkflowStore()
+watchEffect(() => {
+  if (workflowStore.activeWorkflow) {
+    const workflow = workflowStore.activeWorkflow
+    setStorageValue('Comfy.PreviousWorkflow', workflow.path ?? workflow.name)
+  }
 })
 
 usePragmaticDroppable(() => canvasRef.value, {
