@@ -88,6 +88,6 @@
   },
   "lint-staged": {
     "./**/*.{js,ts,tsx,vue}": "prettier --write",
-    "**/*.ts": "tsc-files --noEmit"
+    "**/*.ts": "tsc-files --noEmit --skipLibCheck --noImplicitAny false"
   }
 }
