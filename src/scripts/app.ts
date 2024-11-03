@@ -3086,10 +3086,70 @@ export class ComfyApp extends EventTarget {
     return [x + w / dpi / 2, y + h / dpi / 2]
   }
 
-  public goToNode(nodeId: NodeId) {
-    const graphNode = this.graph.getNodeById(nodeId)
-    if (!graphNode) return
+  getNodeById(nodeId) {
+    return this.graph ? this.graph.getNodeById(nodeId) : null
+  }
+
+  getNodeWidgetsById(nodeId) {
+    const node = this.graph ? this.graph.getNodeById(nodeId) : null
+    return node ? node.widgets : null
+  }
+
+  centerOnNode(graphNode: LGraphNode) {
+    if (!this.canvas) return
     this.canvas.centerOnNode(graphNode)
+
+    this.dispatchEvent(
+      new CustomEvent('centerOnNode', {
+        detail: {
+          graphNode: graphNode
+        }
+      })
+    )
+  }
+
+  animateToNode(graphNode: LGraphNode, zoom: number = 0.7) {
+    if (!this.canvas) return
+
+    if ('animateToNode' in this.canvas) {
+      this.graph.setDirtyCanvas(true)
+      this.canvas.animateToNode(graphNode, 350, zoom, 'easeInOutQuad')
+
+      this.dispatchEvent(
+        new CustomEvent('animateToNode', {
+          detail: {
+            graphNode: graphNode,
+            zoom: zoom
+          }
+        })
+      )
+    } else {
+      this.centerOnNode(graphNode)
+    }
+  }
+
+  animateToNodeId(nodeId: NodeId, zoom: number = 0.7) {
+    if (!this.canvas) return
+    const graphNode = this.getNodeById(nodeId)
+    graphNode && this.animateToNode(graphNode, zoom)
+  }
+
+  selectNode(graphNode: LGraphNode) {
+    if (!this.canvas) return
+    this.canvas.selectNode(graphNode)
+    this.graph.setDirtyCanvas(true)
+
+    this.dispatchEvent(
+      new CustomEvent('selectNode', {
+        detail: { graphNode }
+      })
+    )
+  }
+
+  public goToNode(nodeId: NodeId) {
+    const graphNode = this.getNodeById(nodeId)
+    if (!graphNode) return
+    this.centerOnNode(graphNode)
   }
 }
 
