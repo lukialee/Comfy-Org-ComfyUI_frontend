@@ -89,7 +89,7 @@ type Clipspace = {
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
  */
 
-export class ComfyApp {
+export class ComfyApp extends EventTarget {
   /**
    * List of entries to queue
    * @type {{number: number, batchCount: number}[]}
@@ -167,6 +167,8 @@ export class ComfyApp {
   }
 
   constructor() {
+    super()
+
     this.vueAppReady = false
     this.ui = new ComfyUI(this)
     this.logging = new ComfyLogging(this)
