@@ -1829,7 +1829,7 @@ export class ComfyApp extends EventTarget {
   /**
    * Set up the app on the page
    */
-  async setup(canvasEl: HTMLCanvasElement) {
+  async setup(canvasEl: HTMLCanvasElement, options: Record<string, any> = {}) {
     this.canvasEl = canvasEl
     await this.#setUser()
 
@@ -1848,26 +1848,9 @@ export class ComfyApp extends EventTarget {
     this.#addRestoreWorkflowView()
 
     this.#initGraph()
-
-    // Make LGraphCanvas.state shallow reactive so that any change on the root
-    // object triggers reactivity.
-    this.canvas = new LGraphCanvas(canvasEl, this.graph)
-    this.canvas.state = shallowReactive(this.canvas.state)
-
-    this.ctx = canvasEl.getContext('2d')
-
-    LiteGraph.alt_drag_do_clone_nodes = true
+    this.#initCanvas(canvasEl, options)
 
     this.graph.start()
-
-    // Ensure the canvas fills the window
-    this.resizeCanvas()
-    window.addEventListener('resize', () => this.resizeCanvas())
-    const ro = new ResizeObserver(() => this.resizeCanvas())
-    ro.observe(this.bodyTop)
-    ro.observe(this.bodyLeft)
-    ro.observe(this.bodyRight)
-    ro.observe(this.bodyBottom)
 
     await this.#invokeExtensionsAsync('init')
     await this.registerNodes()
@@ -1961,6 +1944,36 @@ export class ComfyApp extends EventTarget {
     }
   }
 
+  #initCanvas(canvasEl, options = {}) {
+    console.log('ComfyApp: canvas initialization')
+
+    // Make LGraphCanvas.state shallow reactive so that any change on the root
+    // object triggers reactivity.
+    this.canvas = new LGraphCanvas(canvasEl, this.graph)
+    this.canvas.state = shallowReactive(this.canvas.state)
+    this.ctx = canvasEl.getContext('2d')
+
+    LiteGraph.alt_drag_do_clone_nodes = true
+
+    // Ensure the canvas fills the window
+    this.resizeCanvas()
+    window.addEventListener('resize', () => this.resizeCanvas())
+    const ro = new ResizeObserver(() => this.resizeCanvas())
+    ro.observe(this.bodyTop)
+    ro.observe(this.bodyLeft)
+    ro.observe(this.bodyRight)
+    ro.observe(this.bodyBottom)
+
+    this.dispatchEvent(
+      new CustomEvent('canvasReady', {
+        detail: {
+          graph: this.graph,
+          canvas: this.canvas
+        }
+      })
+    )
+  }
+
   saveGraphData() {
     if (!this.graph) {
       this.dispatchEvent(
@@ -1982,6 +1995,15 @@ export class ComfyApp extends EventTarget {
       if (api.clientId) {
         sessionStorage.setItem(`workflow:${api.clientId}`, workflow)
       }
+
+      this.dispatchEvent(
+        new CustomEvent('graphSaved', {
+          detail: {
+            graph: this.graph
+          }
+        })
+      )
+
       console.log('ComfyApp: current workflow saved to localstorage')
     }, 150)
   }
@@ -2045,6 +2067,14 @@ export class ComfyApp extends EventTarget {
     if (this.vueAppReady) {
       this.updateVueAppNodeDefs(defs)
     }
+
+    this.dispatchEvent(
+      new CustomEvent('nodesRegistered', {
+        detail: {
+          defs: defs
+        }
+      })
+    )
   }
 
   getWidgetType(inputData, inputName) {
