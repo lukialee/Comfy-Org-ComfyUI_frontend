@@ -1885,14 +1885,18 @@ export class ComfyApp extends EventTarget {
 
     /*
      * Save current workflow strategy (ONGOING)
-     * STEP1: save only when
-     *  - graph is moved, zoomed, updated (TODO: add necessary events on LiteGraph)
-     *  - node is added, removed, updated (TODO: add necessary events on LiteGraph)
-     * STEP2: continu to autosave, but every 10 seconds
+     * STEP1: save only ...
+     *  - when canvas is moved, zoomed, updated (done, added necessary events on LiteGraph)
+     *  - when node is added or removed (done)
+     *  - when node is updated {
+     *    --> TODO: need to trigger this.graph.onNodeUpdated() each time a node or widget is updated
+     *  }
+     * STEP2: remove setInterval or continue to autosave (but every maybe 10 seconds?)
      */
+
     setInterval(() => {
       this.saveGraphData()
-    }, 10000)
+    }, 1000)
 
     this.#addDrawNodeHandler()
     this.#addDrawGroupsHandler()
@@ -1964,6 +1968,16 @@ export class ComfyApp extends EventTarget {
     ro.observe(this.bodyRight)
     ro.observe(this.bodyBottom)
 
+    this.canvas.onZoomChanged = (z) => {
+      // console.log('ComfyApp: canvas zoom changed', z)
+    }
+
+    /* save workflow when canvas is moved */
+    this.canvas.onPositionChanged = ({ x, y }) => {
+      // console.log('ComfyApp: canvas position changed', {x, y})
+      this.saveGraphData()
+    }
+
     this.dispatchEvent(
       new CustomEvent('canvasReady', {
         detail: {
@@ -1974,6 +1988,9 @@ export class ComfyApp extends EventTarget {
     )
   }
 
+  /**
+   * Save the current workflow to localstorage
+   */
   saveGraphData() {
     if (!this.graph) {
       this.dispatchEvent(
