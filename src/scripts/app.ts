@@ -149,6 +149,7 @@ export class ComfyApp extends EventTarget {
   canvasContainer: HTMLElement
   menu: ComfyAppMenu
   bypassBgColor: string
+  debounceTimers: Record<string, Timeout>
   // Set by Comfy.Clipspace extension
   openClipspace: () => void = () => {}
 
@@ -188,6 +189,7 @@ export class ComfyApp extends EventTarget {
      * @type {ComfyExtension[]}
      */
     this.extensions = []
+    this.debounceTimers = {}
 
     /**
      * Stores the execution output data for each node
@@ -1842,13 +1844,10 @@ export class ComfyApp extends EventTarget {
     addDomClippingSetting()
     this.#addProcessMouseHandler()
     this.#addProcessKeyHandler()
-    this.#addConfigureHandler()
     this.#addApiUpdateHandlers()
     this.#addRestoreWorkflowView()
 
-    this.graph = new LGraph()
-
-    this.#addAfterConfigureHandler()
+    this.#initGraph()
 
     // Make LGraphCanvas.state shallow reactive so that any change on the root
     // object triggers reactivity.
@@ -1901,14 +1900,16 @@ export class ComfyApp extends EventTarget {
       await this.loadGraphData()
     }
 
-    // Save current workflow automatically
+    /*
+     * Save current workflow strategy (ONGOING)
+     * STEP1: save only when
+     *  - graph is moved, zoomed, updated (TODO: add necessary events on LiteGraph)
+     *  - node is added, removed, updated (TODO: add necessary events on LiteGraph)
+     * STEP2: continu to autosave, but every 10 seconds
+     */
     setInterval(() => {
-      const workflow = JSON.stringify(this.serializeGraph())
-      localStorage.setItem('workflow', workflow)
-      if (api.clientId) {
-        sessionStorage.setItem(`workflow:${api.clientId}`, workflow)
-      }
-    }, 1000)
+      this.saveGraphData()
+    }, 10000)
 
     this.#addDrawNodeHandler()
     this.#addDrawGroupsHandler()
@@ -1918,6 +1919,71 @@ export class ComfyApp extends EventTarget {
     this.#addWidgetLinkHandling()
 
     await this.#invokeExtensionsAsync('setup')
+  }
+
+  async #initGraph() {
+    this.logging.addEntry('Comfy.App', 'info', 'LiteGraph initialization')
+    console.log('ComfyApp: LiteGraph initialization')
+
+    this.#addConfigureHandler()
+    this.graph = new LGraph()
+    this.#addAfterConfigureHandler()
+
+    this.graph.onNodeAdded = (node) => {
+      this.logging.addEntry('Comfy.App', 'info', 'added node', node)
+      console.log('ComfyApp: added node', node)
+    }
+
+    this.graph.onNodeUpdated = (node) => {
+      this.logging.addEntry('Comfy.App', 'info', 'updated node', node)
+      console.log('ComfyApp: updated node', node, node.mode)
+    }
+
+    this.graph.onNodeRemoved = (node) => {
+      this.logging.addEntry('Comfy.App', 'info', 'removed node', node)
+      console.log('ComfyApp: removed node', node)
+    }
+
+    this.graph.onInputsOutputsChange = () => {
+      this.logging.addEntry('Comfy.App', 'info', 'onInputsOutputsChange')
+      console.log('ComfyApp: onInputsOutputsChange')
+    }
+
+    this.graph.onBeforeChange = (e) => {
+      this.logging.addEntry('Comfy.App', 'info', 'onBeforeChange', e)
+      console.log('ComfyApp: onBeforeChange', e)
+    }
+
+    this.graph.onAfterChange = (e) => {
+      this.logging.addEntry('Comfy.App', 'info', 'onAfterChange', e)
+      console.log('ComfyApp: onAfterChange', e)
+      this.saveGraphData()
+    }
+  }
+
+  saveGraphData() {
+    if (!this.graph) {
+      this.dispatchEvent(
+        new CustomEvent('error', {
+          detail: 'ComfyApp: cannot save graph data before graph initialization'
+        })
+      )
+
+      return
+    }
+
+    if (this.debounceTimers['savegraph']) {
+      clearTimeout(this.debounceTimers['savegraph'])
+    }
+
+    this.debounceTimers['savegraph'] = setTimeout(() => {
+      const workflow = JSON.stringify(this.serializeGraph())
+      localStorage.setItem('workflow', workflow)
+      if (api.clientId) {
+        sessionStorage.setItem(`workflow:${api.clientId}`, workflow)
+      }
+      console.log('ComfyApp: current workflow saved to localstorage')
+    }, 150)
   }
 
   resizeCanvas() {
@@ -2979,6 +3045,7 @@ export class ComfyApp extends EventTarget {
    */
   clean() {
     this.nodeOutputs = {}
+    this.debounceTimers = {}
     this.nodePreviewImages = {}
     this.lastNodeErrors = null
     this.lastExecutionError = null
