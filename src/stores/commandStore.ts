@@ -270,33 +270,19 @@ export const useCommandStore = defineStore('command', () => {
       id: 'Comfy.Canvas.ZoomIn',
       icon: 'pi pi-plus',
       label: 'Zoom In',
-      function: () => {
-        const ds = app.canvas.ds
-        ds.changeScale(
-          ds.scale * 1.1,
-          ds.element ? [ds.element.width / 2, ds.element.height / 2] : undefined
-        )
-        app.canvas.setDirty(true, true)
-      }
+      function: () => app.zoomIn()
     },
     {
       id: 'Comfy.Canvas.ZoomOut',
       icon: 'pi pi-minus',
       label: 'Zoom Out',
-      function: () => {
-        const ds = app.canvas.ds
-        ds.changeScale(
-          ds.scale / 1.1,
-          ds.element ? [ds.element.width / 2, ds.element.height / 2] : undefined
-        )
-        app.canvas.setDirty(true, true)
-      }
+      function: () => app.zoomOut()
     },
     {
       id: 'Comfy.Canvas.FitView',
       icon: 'pi pi-expand',
       label: 'Fit view to selected nodes',
-      function: () => app.canvas.fitViewToSelectionAnimated()
+      function: () => app.fitViewToSelection()
     },
     {
       id: 'Comfy.Canvas.ToggleLock',

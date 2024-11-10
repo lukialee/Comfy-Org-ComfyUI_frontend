@@ -60,6 +60,7 @@ import { useCommandStore } from '@/stores/commandStore'
 import { shallowReactive } from 'vue'
 import { type IBaseWidget } from '@comfyorg/litegraph/dist/types/widgets'
 import { workflowService } from '@/services/workflowService'
+import { type Point } from '@comfyorg/litegraph/dist/interfaces'
 
 export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview'
 
@@ -150,7 +151,7 @@ export class ComfyApp extends EventTarget {
   canvasContainer: HTMLElement
   menu: ComfyAppMenu
   bypassBgColor: string
-  debounceTimers: Record<string, Timeout>
+  debounceTimers: Record<string, NodeJS.Timeout>
   // Set by Comfy.Clipspace extension
   openClipspace: () => void = () => {}
 
@@ -1930,8 +1931,8 @@ export class ComfyApp extends EventTarget {
     }
 
     /* save workflow when canvas is moved */
-    this.canvas.onPositionChanged = ({ x, y }) => {
-      // console.log('ComfyApp: canvas position changed', {x, y})
+    this.canvas.onPositionChanged = (offset: Point) => {
+      //console.log('ComfyApp: canvas position changed', offset)
       this.saveGraphData()
     }
 
@@ -3087,6 +3088,20 @@ export class ComfyApp extends EventTarget {
     return node ? node.widgets : null
   }
 
+  selectNode(graphNode: LGraphNode) {
+    if (!this.canvas) return
+    this.canvas.select(graphNode)
+    this.graph.setDirtyCanvas(true)
+
+    this.dispatchEvent(
+      new CustomEvent('selectNode', {
+        detail: {
+          graphNode
+        }
+      })
+    )
+  }
+
   centerOnNode(graphNode: LGraphNode) {
     if (!this.canvas) return
     this.canvas.centerOnNode(graphNode)
@@ -3100,48 +3115,83 @@ export class ComfyApp extends EventTarget {
     )
   }
 
-  animateToNode(graphNode: LGraphNode, zoom: number = 0.7) {
+  /**
+   * Zoom in
+   */
+  zoomIn() {
     if (!this.canvas) return
+    const ds = this.canvas.ds
+    ds.changeScale(
+      ds.scale * 1.1,
+      ds.element ? [ds.element.width / 2, ds.element.height / 2] : undefined
+    )
 
-    if ('animateToNode' in this.canvas) {
-      this.graph.setDirtyCanvas(true)
-      this.canvas.animateToNode(graphNode, 350, zoom, 'easeInOutQuad')
-
-      this.dispatchEvent(
-        new CustomEvent('animateToNode', {
-          detail: {
-            graphNode: graphNode,
-            zoom: zoom
-          }
-        })
-      )
-    } else {
-      this.centerOnNode(graphNode)
-    }
+    this.canvas.setDirty(true, true)
+    console.log('zoomIn', ds.scale)
   }
 
-  animateToNodeId(nodeId: NodeId, zoom: number = 0.7) {
+  /**
+   * Zoom out
+   */
+  zoomOut() {
     if (!this.canvas) return
-    const graphNode = this.getNodeById(nodeId)
-    graphNode && this.animateToNode(graphNode, zoom)
+    const ds = this.canvas.ds
+
+    ds.changeScale(
+      ds.scale / 1.1,
+      ds.element ? [ds.element.width / 2, ds.element.height / 2] : undefined
+    )
+
+    this.canvas.setDirty(true, true)
+    console.log('zoomOut', ds.scale)
   }
 
-  selectNode(graphNode: LGraphNode) {
+  /**
+   * Zoom to a specific scale
+   * @param {number} scale
+   */
+  zoomTo(scale: number) {
     if (!this.canvas) return
-    this.canvas.selectNode(graphNode)
-    this.graph.setDirtyCanvas(true)
+    this.canvas.ds.changeScale(scale)
+    this.canvas.setDirty(true, true)
 
     this.dispatchEvent(
-      new CustomEvent('selectNode', {
-        detail: { graphNode }
+      new CustomEvent('zoomTo', {
+        detail: {
+          scale
+        }
       })
     )
   }
 
+  /**
+   * Fit view to selection
+   */
+  fitViewToSelection() {
+    if (!this.canvas) return
+    this.canvas.fitViewToSelectionAnimated()
+    console.log('fitViewToSelection')
+    this.dispatchEvent(new CustomEvent('fitViewToSelection'))
+  }
+
+  /**
+   * Animate to a node
+   * @param {NodeId} nodeId
+   */
   public goToNode(nodeId: NodeId) {
+    if (!this.canvas) return
+
     const graphNode = this.getNodeById(nodeId)
     if (!graphNode) return
     this.canvas.animateToBounds(graphNode.boundingRect)
+
+    this.dispatchEvent(
+      new CustomEvent('goToNode', {
+        detail: {
+          graphNode
+        }
+      })
+    )
   }
 }
 
