@@ -1,6 +1,8 @@
 <template>
   <teleport to=".graph-canvas-container">
-    <LiteGraphCanvasSplitterOverlay v-if="betaMenuEnabled">
+    <LiteGraphCanvasSplitterOverlay
+      v-if="betaMenuEnabled && !workspaceStore.focusMode"
+    >
       <template #side-bar-panel>
         <SideToolbar />
       </template>
@@ -55,6 +57,7 @@ import GraphCanvasMenu from '@/components/graph/GraphCanvasMenu.vue'
 import { usePragmaticDroppable } from '@/hooks/dndHooks'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import { setStorageValue } from '@/scripts/utils'
+import { ChangeTracker } from '@/scripts/changeTracker'
 
 const emit = defineEmits(['ready'])
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -64,9 +67,7 @@ const workspaceStore = useWorkspaceStore()
 const canvasStore = useCanvasStore()
 const modelToNodeStore = useModelToNodeStore()
 const betaMenuEnabled = computed(
-  () =>
-    settingStore.get('Comfy.UseNewMenu') !== 'Disabled' &&
-    !workspaceStore.focusMode
+  () => settingStore.get('Comfy.UseNewMenu') !== 'Disabled'
 )
 const canvasMenuEnabled = computed(() =>
   settingStore.get('Comfy.Graph.CanvasMenu')
@@ -147,7 +148,7 @@ const workflowStore = useWorkflowStore()
 watchEffect(() => {
   if (workflowStore.activeWorkflow) {
     const workflow = workflowStore.activeWorkflow
-    setStorageValue('Comfy.PreviousWorkflow', workflow.path ?? workflow.name)
+    setStorageValue('Comfy.PreviousWorkflow', workflow.key)
   }
 })
 
@@ -222,6 +223,9 @@ onMounted(async () => {
   comfyApp.vueAppReady = true
 
   workspaceStore.spinner = true
+  // ChangeTracker needs to be initialized before setup, as it will overwrite
+  // some listeners of litegraph canvas.
+  ChangeTracker.init(comfyApp)
   await comfyApp.setup(canvasRef.value)
   canvasStore.canvas = comfyApp.canvas
   workspaceStore.spinner = false

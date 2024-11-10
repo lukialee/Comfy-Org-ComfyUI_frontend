@@ -51,7 +51,14 @@ module.exports = async function () {
         shiftDown: false,
         spinner: false,
         focusMode: false,
-        toggleFocusMode: jest.fn()
+        toggleFocusMode: jest.fn(),
+        workflow: {
+          activeWorkflow: null,
+          syncWorkflows: jest.fn(),
+          getWorkflowByPath: jest.fn(),
+          createTemporary: jest.fn(),
+          openWorkflow: jest.fn()
+        }
       })
     }
   })
@@ -65,6 +72,12 @@ module.exports = async function () {
   jest.mock('vue-i18n', () => {
     return {
       useI18n: jest.fn()
+    }
+  })
+
+  jest.mock('jsondiffpatch', () => {
+    return {
+      diff: jest.fn()
     }
   })
 }

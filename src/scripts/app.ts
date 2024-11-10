@@ -25,8 +25,9 @@ import { ComfyNodeDef, StatusWsMessageStatus } from '@/types/apiTypes'
 import { adjustColor, ColorAdjustOptions } from '@/utils/colorUtil'
 import { ComfyAppMenu } from './ui/menu/index'
 import { getStorageValue } from './utils'
-import { ComfyWorkflowManager, ComfyWorkflow } from './workflows'
+import { ComfyWorkflow } from '@/stores/workflowStore'
 import {
+  LGraphGroup,
   LGraphCanvas,
   LGraph,
   LGraphNode,
@@ -58,6 +59,7 @@ import { KeyComboImpl, useKeybindingStore } from '@/stores/keybindingStore'
 import { useCommandStore } from '@/stores/commandStore'
 import { shallowReactive } from 'vue'
 import { type IBaseWidget } from '@comfyorg/litegraph/dist/types/widgets'
+import { workflowService } from '@/services/workflowService'
 
 export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview'
 
@@ -141,7 +143,6 @@ export class ComfyApp extends EventTarget {
   multiUserServer: boolean
   ctx: CanvasRenderingContext2D
   widgets: Record<string, ComfyWidgetConstructor>
-  workflowManager: ComfyWorkflowManager
   bodyTop: HTMLElement
   bodyLeft: HTMLElement
   bodyRight: HTMLElement
@@ -173,7 +174,6 @@ export class ComfyApp extends EventTarget {
     this.vueAppReady = false
     this.ui = new ComfyUI(this)
     this.logging = new ComfyLogging(this)
-    this.workflowManager = new ComfyWorkflowManager(this)
     this.bodyTop = $el('div.comfyui-body-top', { parent: document.body })
     this.bodyLeft = $el('div.comfyui-body-left', { parent: document.body })
     this.bodyRight = $el('div.comfyui-body-right', { parent: document.body })
@@ -1223,29 +1223,6 @@ export class ComfyApp extends EventTarget {
       }
 
       const res = origProcessMouseDown.apply(this, arguments)
-
-      this.selected_group_moving = false
-
-      if (this.selected_group && !this.selected_group_resizing) {
-        var font_size =
-          this.selected_group.font_size || LiteGraph.DEFAULT_GROUP_FONT_SIZE
-        var height = font_size * 1.4
-
-        // Move group by header
-        if (
-          LiteGraph.isInsideRectangle(
-            e.canvasX,
-            e.canvasY,
-            this.selected_group.pos[0],
-            this.selected_group.pos[1],
-            this.selected_group.size[0],
-            height
-          )
-        ) {
-          this.selected_group_moving = true
-        }
-      }
-
       return res
     }
     const origProcessMouseMove = LGraphCanvas.prototype.processMouseMove
@@ -1273,27 +1250,7 @@ export class ComfyApp extends EventTarget {
         return
       }
 
-      const orig_selected_group = this.selected_group
-
-      if (
-        this.selected_group &&
-        !this.selected_group_resizing &&
-        !this.selected_group_moving
-      ) {
-        this.selected_group = null
-      }
-
-      const res = origProcessMouseMove.apply(this, arguments)
-
-      if (
-        orig_selected_group &&
-        !this.selected_group_resizing &&
-        !this.selected_group_moving
-      ) {
-        this.selected_group = orig_selected_group
-      }
-
-      return res
+      return origProcessMouseMove.apply(this, arguments)
     }
   }
 
@@ -1836,7 +1793,7 @@ export class ComfyApp extends EventTarget {
     this.resizeCanvas()
 
     await Promise.all([
-      this.workflowManager.loadWorkflows(),
+      useWorkspaceStore().workflow.syncWorkflows(),
       this.ui.settings.load()
     ])
     await this.#loadExtensions()
@@ -2135,8 +2092,11 @@ export class ComfyApp extends EventTarget {
           widget?: IBaseWidget
         } = { minWidth: 1, minHeight: 1 }
         for (const inputName in inputs) {
-          const inputData = inputs[inputName]
-          const type = inputData[0]
+          const _inputData = inputs[inputName]
+          const type = _inputData[0]
+          const options = _inputData[1] ?? {}
+          const inputData = [type, options]
+
           const inputIsRequired = requiredInputs && inputName in requiredInputs
 
           let widgetCreated = true
@@ -2318,21 +2278,6 @@ export class ComfyApp extends EventTarget {
     })
   }
 
-  async changeWorkflow(callback, workflow = null) {
-    try {
-      this.workflowManager.activeWorkflow?.changeTracker?.store()
-    } catch (error) {
-      console.error(error)
-    }
-    await callback()
-    try {
-      this.workflowManager.setWorkflow(workflow)
-      this.workflowManager.activeWorkflow?.track()
-    } catch (error) {
-      console.error(error)
-    }
-  }
-
   async loadGraphData(
     graphData?: ComfyWorkflowJSON,
     clean: boolean = true,
@@ -2356,12 +2301,6 @@ export class ComfyApp extends EventTarget {
       graphData = structuredClone(graphData)
     }
 
-    try {
-      this.workflowManager.setWorkflow(workflow)
-    } catch (error) {
-      console.error(error)
-    }
-
     if (useSettingStore().get('Comfy.Validation.Workflows')) {
       // TODO: Show validation error in a dialog.
       const validatedGraphData = await validateComfyWorkflow(
@@ -2374,6 +2313,8 @@ export class ComfyApp extends EventTarget {
       // Ideally we should not block users from loading the workflow.
       graphData = validatedGraphData ?? graphData
     }
+
+    workflowService.beforeLoadNewGraph()
 
     const missingNodeTypes: MissingNodeType[] = []
     const missingModels = []
@@ -2427,12 +2368,6 @@ export class ComfyApp extends EventTarget {
         // https://github.com/colinhacks/zod/issues/3056
         this.canvas.ds.offset = graphData.extra.ds.offset
         this.canvas.ds.scale = graphData.extra.ds.scale
-      }
-
-      try {
-        this.workflowManager.activeWorkflow?.track()
-      } catch (error) {
-        // TODO: Do we want silently fail here?
       }
     } catch (error) {
       let errorHint = []
@@ -2542,6 +2477,8 @@ export class ComfyApp extends EventTarget {
       this.#showMissingModelsError(missingModels, paths)
     }
     await this.#invokeExtensionsAsync('afterConfigureGraph', missingNodeTypes)
+    // @ts-expect-error zod types issue. Will be fixed after we enable ts-strict
+    await workflowService.afterLoadNewGraph(workflow, this.graph.serialize())
     requestAnimationFrame(() => {
       this.graph.setDirtyCanvas(true, true)
     })
@@ -2760,9 +2697,11 @@ export class ComfyApp extends EventTarget {
               this.canvas.draw(true, true)
             } else {
               try {
-                this.workflowManager.storePrompt({
+                useExecutionStore().storePrompt({
                   id: res.prompt_id,
-                  nodes: Object.keys(p.output)
+                  nodes: Object.keys(p.output),
+                  workflow: useWorkspaceStore().workflow
+                    .activeWorkflow as ComfyWorkflow
                 })
               } catch (error) {}
             }
@@ -2836,9 +2775,12 @@ export class ComfyApp extends EventTarget {
       } else if (pngInfo?.prompt) {
         this.loadApiJson(JSON.parse(pngInfo.prompt), fileName)
       } else if (pngInfo?.parameters) {
-        this.changeWorkflow(() => {
-          importA1111(this.graph, pngInfo.parameters)
-        }, fileName)
+        // Note: Not putting this in `importA1111` as it is mostly not used
+        // by external callers, and `importA1111` has no access to `app`.
+        workflowService.beforeLoadNewGraph()
+        importA1111(this.graph, pngInfo.parameters)
+        // @ts-expect-error zod type issue on ComfyWorkflowJSON. Should be resolved after enabling ts-strict globally.
+        workflowService.afterLoadNewGraph(fileName, this.serializeGraph())
       } else {
         this.showErrorOnFileLoad(file)
       }
@@ -2922,6 +2864,8 @@ export class ComfyApp extends EventTarget {
   }
 
   loadApiJson(apiData, fileName: string) {
+    workflowService.beforeLoadNewGraph()
+
     const missingNodeTypes = Object.values(apiData).filter(
       // @ts-expect-error
       (n) => !LiteGraph.registered_node_types[n.class_type]
@@ -2944,40 +2888,38 @@ export class ComfyApp extends EventTarget {
       app.graph.add(node)
     }
 
-    this.changeWorkflow(() => {
-      for (const id of ids) {
-        const data = apiData[id]
-        const node = app.graph.getNodeById(id)
-        for (const input in data.inputs ?? {}) {
-          const value = data.inputs[input]
-          if (value instanceof Array) {
-            const [fromId, fromSlot] = value
-            const fromNode = app.graph.getNodeById(fromId)
-            let toSlot = node.inputs?.findIndex((inp) => inp.name === input)
-            if (toSlot == null || toSlot === -1) {
-              try {
-                // Target has no matching input, most likely a converted widget
-                const widget = node.widgets?.find((w) => w.name === input)
-                // @ts-expect-error
-                if (widget && node.convertWidgetToInput?.(widget)) {
-                  toSlot = node.inputs?.length - 1
-                }
-              } catch (error) {}
-            }
-            if (toSlot != null || toSlot !== -1) {
-              fromNode.connect(fromSlot, node, toSlot)
-            }
-          } else {
-            const widget = node.widgets?.find((w) => w.name === input)
-            if (widget) {
-              widget.value = value
-              widget.callback?.(value)
-            }
+    for (const id of ids) {
+      const data = apiData[id]
+      const node = app.graph.getNodeById(id)
+      for (const input in data.inputs ?? {}) {
+        const value = data.inputs[input]
+        if (value instanceof Array) {
+          const [fromId, fromSlot] = value
+          const fromNode = app.graph.getNodeById(fromId)
+          let toSlot = node.inputs?.findIndex((inp) => inp.name === input)
+          if (toSlot == null || toSlot === -1) {
+            try {
+              // Target has no matching input, most likely a converted widget
+              const widget = node.widgets?.find((w) => w.name === input)
+              // @ts-expect-error
+              if (widget && node.convertWidgetToInput?.(widget)) {
+                toSlot = node.inputs?.length - 1
+              }
+            } catch (error) {}
+          }
+          if (toSlot != null || toSlot !== -1) {
+            fromNode.connect(fromSlot, node, toSlot)
+          }
+        } else {
+          const widget = node.widgets?.find((w) => w.name === input)
+          if (widget) {
+            widget.value = value
+            widget.callback?.(value)
           }
         }
       }
-      app.graph.arrange()
-    }, fileName)
+    }
+    app.graph.arrange()
 
     for (const id of ids) {
       const data = apiData[id]
@@ -3012,6 +2954,9 @@ export class ComfyApp extends EventTarget {
     }
 
     app.graph.arrange()
+
+    // @ts-expect-error zod type issue on ComfyWorkflowJSON. Should be resolved after enabling ts-strict globally.
+    workflowService.afterLoadNewGraph(fileName, this.serializeGraph())
   }
 
   /**
@@ -3196,7 +3141,7 @@ export class ComfyApp extends EventTarget {
   public goToNode(nodeId: NodeId) {
     const graphNode = this.getNodeById(nodeId)
     if (!graphNode) return
-    this.centerOnNode(graphNode)
+    this.canvas.animateToBounds(graphNode.boundingRect)
   }
 }
 
