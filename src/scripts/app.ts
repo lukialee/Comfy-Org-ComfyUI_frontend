@@ -1792,6 +1792,8 @@ export class ComfyApp extends EventTarget {
    */
   async setup(canvasEl: HTMLCanvasElement, options: Record<string, any> = {}) {
     this.canvasEl = canvasEl
+    // Show menu container for GraphView.
+    this.ui.menuContainer.style.display = 'block'
     await this.#setUser()
 
     this.resizeCanvas()
