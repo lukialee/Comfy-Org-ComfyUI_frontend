@@ -1931,13 +1931,25 @@ export class ComfyApp extends EventTarget {
     ro.observe(this.bodyRight)
     ro.observe(this.bodyBottom)
 
-    this.canvas.onZoomChanged = (z) => {
-      // console.log('ComfyApp: canvas zoom changed', z)
+    this.canvas.onZoomChanged = (zoom) => {
+      // console.log('ComfyApp: canvas zoom changed', zoom)
+      this.dispatchEvent(
+        new CustomEvent('canvasZoomChanged', {
+          detail: { zoom }
+        })
+      )
     }
 
     /* save workflow when canvas is moved */
     this.canvas.onPositionChanged = (offset: Point) => {
       //console.log('ComfyApp: canvas position changed', offset)
+
+      this.dispatchEvent(
+        new CustomEvent('canvasPositionChanged', {
+          detail: { offset }
+        })
+      )
+
       this.saveGraphData()
     }
 
@@ -1960,19 +1972,26 @@ export class ComfyApp extends EventTarget {
   }
 
   /*
-   * Emits a 'onNodeWidgetChanged' event when a widget
-   * has been updated on a LiteGraph node
+   * Emits a 'nodeWidgetUpdated' event when a widget
+   * has been updated on a LiteGraph node, profit to save
+   * the workflow
+   *
+   * @param node - The LiteGraph node that was updated
+   * @param widgetName - The name of the widget that was updated
+   * @param value - The new value of the widget
+   * @param optionArray - The array of options for the widget
    */
   triggerWidgetUpdateEvent(
     node: LGraphNode,
     widgetName: string,
-    value: unknown
+    value: unknown,
+    optionArray?: unknown[] | string[]
   ) {
     console.log('ComfyApp: triggerWidgetUpdateEvent', node, widgetName, value)
 
     this.dispatchEvent(
-      new CustomEvent('onNodeWidgetChanged', {
-        detail: { node, widgetName, value }
+      new CustomEvent('nodeWidgetUpdated', {
+        detail: { node, widgetName, value, optionArray }
       })
     )
 
@@ -2027,6 +2046,16 @@ export class ComfyApp extends EventTarget {
     this.canvasEl.height = Math.round(height * scale)
     this.canvasEl.getContext('2d').scale(scale, scale)
     this.canvas?.draw(true, true)
+
+    this.dispatchEvent(
+      new CustomEvent('canvasResized', {
+        detail: {
+          width: width,
+          height: height,
+          scale: scale
+        }
+      })
+    )
   }
 
   private updateVueAppNodeDefs(defs: Record<string, ComfyNodeDef>) {
@@ -3160,7 +3189,6 @@ export class ComfyApp extends EventTarget {
     )
 
     this.canvas.setDirty(true, true)
-    console.log('zoomIn', ds.scale)
   }
 
   /**
@@ -3176,7 +3204,6 @@ export class ComfyApp extends EventTarget {
     )
 
     this.canvas.setDirty(true, true)
-    console.log('zoomOut', ds.scale)
   }
 
   /**
