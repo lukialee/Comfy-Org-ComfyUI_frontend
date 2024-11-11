@@ -334,10 +334,44 @@ function addMultilineWidget(node, name: string, opts, app: ComfyApp) {
       inputEl.value = v
     }
   })
+
   widget.inputEl = inputEl
 
-  inputEl.addEventListener('input', () => {
+  inputEl.addEventListener('input', (e: Event) => {
     widget.callback?.(widget.value)
+
+    if (e.target) {
+      const target = e.target as HTMLTextAreaElement
+      app.triggerWidgetUpdateEvent(node, 'text', String(target.value))
+    }
+  })
+
+  inputEl.addEventListener('blur', (e: Event) => {
+    if (e.target) {
+      const target = e.target as HTMLTextAreaElement
+      app.triggerWidgetUpdateEvent(node, 'text', String(target.value))
+    }
+  })
+
+  inputEl.addEventListener('keypress', (e: Event) => {
+    if (e.target) {
+      const target = e.target as HTMLTextAreaElement
+      app.triggerWidgetUpdateEvent(node, 'text', String(target.value))
+    }
+  })
+
+  inputEl.addEventListener('copy', (e: Event) => {
+    if (e.target) {
+      const target = e.target as HTMLTextAreaElement
+      app.triggerWidgetUpdateEvent(node, 'text', String(target.value))
+    }
+  })
+
+  inputEl.addEventListener('paste', (e: Event) => {
+    if (e.target) {
+      const target = e.target as HTMLTextAreaElement
+      app.triggerWidgetUpdateEvent(node, 'text', String(target.value))
+    }
   })
 
   return { minWidth: 400, minHeight: 200, widget }
