@@ -96,6 +96,8 @@ const toggleSelectedNodesMode = (mode: number) => {
     } else {
       node.mode = mode
     }
+
+    app.saveGraphData()
   })
 }
 
