@@ -588,6 +588,7 @@ export class ComfyApp extends EventTarget {
           if (this.mode === 4) this.mode = 0
           else this.mode = 4
           this.graph.change()
+          app.saveGraphData()
         }
       })
 
@@ -628,6 +629,8 @@ export class ComfyApp extends EventTarget {
     const origNodeOnKeyDown = node.prototype.onKeyDown
 
     node.prototype.onKeyDown = function (e) {
+      app.saveGraphData()
+
       if (origNodeOnKeyDown && origNodeOnKeyDown.apply(this, e) === false) {
         return false
       }
@@ -1852,9 +1855,9 @@ export class ComfyApp extends EventTarget {
      * STEP2: remove setInterval or continue to autosave (but every maybe 10 seconds?)
      */
 
-    setInterval(() => {
-      this.saveGraphData()
-    }, 1000)
+    //setInterval(() => {
+    this.saveGraphData()
+    //}, 1000)
 
     this.#addDrawNodeHandler()
     this.#addDrawGroupsHandler()
@@ -1896,7 +1899,7 @@ export class ComfyApp extends EventTarget {
 
     this.graph.onBeforeChange = (e) => {
       this.logging.addEntry('Comfy.App', 'info', 'onBeforeChange', e)
-      console.log('ComfyApp: onBeforeChange', e)
+      // console.log('ComfyApp: onBeforeChange', e)
     }
 
     this.graph.onAfterChange = (e) => {
@@ -1936,6 +1939,14 @@ export class ComfyApp extends EventTarget {
       this.saveGraphData()
     }
 
+    this.canvas.onNodeWidgetChanged = (
+      node: LGraphNode,
+      widgetName: string,
+      value: unknown
+    ) => {
+      this.triggerWidgetUpdateEvent(node, widgetName, value)
+    }
+
     this.dispatchEvent(
       new CustomEvent('canvasReady', {
         detail: {
@@ -1944,6 +1955,26 @@ export class ComfyApp extends EventTarget {
         }
       })
     )
+  }
+
+  /*
+   * Emits a 'onNodeWidgetChanged' event when a widget
+   * has been updated on a LiteGraph node
+   */
+  triggerWidgetUpdateEvent(
+    node: LGraphNode,
+    widgetName: string,
+    value: unknown
+  ) {
+    console.log('ComfyApp: triggerWidgetUpdateEvent', node, widgetName, value)
+
+    this.dispatchEvent(
+      new CustomEvent('onNodeWidgetChanged', {
+        detail: { node, widgetName, value }
+      })
+    )
+
+    this.saveGraphData()
   }
 
   /**
