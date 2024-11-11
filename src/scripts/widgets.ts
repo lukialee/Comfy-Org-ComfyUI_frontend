@@ -569,39 +569,6 @@ export const ComfyWidgets: Record<string, ComfyWidgetConstructor> = {
       }
     })
 
-    async function uploadFile(file, updateNode, pasted = false) {
-      try {
-        // Wrap file in formdata so it includes filename
-        const body = new FormData()
-        body.append('image', file)
-        if (pasted) body.append('subfolder', 'pasted')
-        const resp = await api.fetchApi('/upload/image', {
-          method: 'POST',
-          body
-        })
-
-        if (resp.status === 200) {
-          const data = await resp.json()
-          // Add the file to the dropdown list and update the widget value
-          let path = data.name
-          if (data.subfolder) path = data.subfolder + '/' + path
-
-          if (!imageWidget.options.values.includes(path)) {
-            imageWidget.options.values.push(path)
-          }
-
-          if (updateNode) {
-            imageWidget.value = path
-            pipeline.updateNodeImage(app, node, String(imageWidget.value))
-          }
-        } else {
-          useToastStore().addAlert(resp.status + ' - ' + resp.statusText)
-        }
-      } catch (error) {
-        useToastStore().addAlert(error)
-      }
-    }
-
     const fileInput = document.createElement('input')
     Object.assign(fileInput, {
       type: 'file',
