@@ -6,6 +6,7 @@ import type { IWidget, LGraphNode } from '@comfyorg/litegraph'
 import { InputSpec } from '@/types/apiTypes'
 import { useSettingStore } from '@/stores/settingStore'
 import { useToastStore } from '@/stores/toastStore'
+import pipeline from './core/pipeline'
 
 export type ComfyWidgetConstructor = (
   node: LGraphNode,
@@ -520,26 +521,6 @@ export const ComfyWidgets: Record<string, ComfyWidgetConstructor> = {
     )
     let uploadWidget
 
-    function showImage(name) {
-      const img = new Image()
-      img.onload = () => {
-        // @ts-expect-error
-        node.imgs = [img]
-        app.graph.setDirtyCanvas(true)
-      }
-      let folder_separator = name.lastIndexOf('/')
-      let subfolder = ''
-      if (folder_separator > -1) {
-        subfolder = name.substring(0, folder_separator)
-        name = name.substring(folder_separator + 1)
-      }
-      img.src = api.apiURL(
-        `/view?filename=${encodeURIComponent(name)}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}${app.getRandParam()}`
-      )
-      // @ts-expect-error
-      node.setSizeForImage?.()
-    }
-
     var default_value = imageWidget.value
     Object.defineProperty(imageWidget, 'value', {
       set: function (value) {
@@ -573,7 +554,7 @@ export const ComfyWidgets: Record<string, ComfyWidgetConstructor> = {
     // @ts-expect-error
     const cb = node.callback
     imageWidget.callback = function () {
-      showImage(imageWidget.value)
+      pipeline.updateNodeImage(app, node, String(imageWidget.value))
       if (cb) {
         return cb.apply(this, arguments)
       }
@@ -584,7 +565,7 @@ export const ComfyWidgets: Record<string, ComfyWidgetConstructor> = {
     // No change callbacks seem to be fired on initial setting of the value
     requestAnimationFrame(() => {
       if (imageWidget.value) {
-        showImage(imageWidget.value)
+        pipeline.updateNodeImage(app, node, String(imageWidget.value))
       }
     })
 
@@ -610,8 +591,8 @@ export const ComfyWidgets: Record<string, ComfyWidgetConstructor> = {
           }
 
           if (updateNode) {
-            showImage(path)
             imageWidget.value = path
+            pipeline.updateNodeImage(app, node, String(imageWidget.value))
           }
         } else {
           useToastStore().addAlert(resp.status + ' - ' + resp.statusText)
@@ -628,7 +609,7 @@ export const ComfyWidgets: Record<string, ComfyWidgetConstructor> = {
       style: 'display: none',
       onchange: async () => {
         if (fileInput.files.length) {
-          await uploadFile(fileInput.files[0], true)
+          await pipeline.uploadImageToNode(app, node, fileInput.files[0], true)
         }
       }
     })
@@ -659,7 +640,8 @@ export const ComfyWidgets: Record<string, ComfyWidgetConstructor> = {
       let handled = false
       for (const file of e.dataTransfer.files) {
         if (file.type.startsWith('image/')) {
-          uploadFile(file, !handled) // Dont await these, any order is fine, only update on first one
+          // Dont await these, any order is fine, only update on first one
+          pipeline.uploadImageToNode(app, node, file, !handled)
           handled = true
         }
       }
@@ -672,7 +654,8 @@ export const ComfyWidgets: Record<string, ComfyWidgetConstructor> = {
       if (file.type.startsWith('image/')) {
         const is_pasted =
           file.name === 'image.png' && file.lastModified - Date.now() < 2000
-        uploadFile(file, true, is_pasted)
+
+        pipeline.uploadImageToNode(app, node, file, true, is_pasted)
         return true
       }
       return false
