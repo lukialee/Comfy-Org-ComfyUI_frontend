@@ -3,6 +3,7 @@
  * Methods we want to expose to the SDK should be defined / moved here
  */
 
+// @ts-strict-ignore
 import { api } from '../api'
 import { useToastStore } from '@/stores/toastStore'
 import type { ComfyApp } from '../app'

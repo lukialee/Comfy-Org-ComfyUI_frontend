@@ -1,6 +1,10 @@
 // @ts-strict-ignore
 import { ComfyLogging } from './logging'
-import { ComfyWidgetConstructor, ComfyWidgets, initWidgets } from './widgets'
+import {
+  type ComfyWidgetConstructor,
+  ComfyWidgets,
+  initWidgets
+} from './widgets'
 import { ComfyUI, $el } from './ui'
 import { api } from './api'
 import { defaultGraph } from './defaultGraph'
@@ -61,6 +65,7 @@ import { shallowReactive } from 'vue'
 import { type IBaseWidget } from '@comfyorg/litegraph/dist/types/widgets'
 import { workflowService } from '@/services/workflowService'
 import { type Point } from '@comfyorg/litegraph/dist/interfaces'
+import { useWidgetStore } from '@/stores/widgetStore'
 
 export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview'
 
@@ -143,7 +148,6 @@ export class ComfyApp extends EventTarget {
   storageLocation: StorageLocation
   multiUserServer: boolean
   ctx: CanvasRenderingContext2D
-  widgets: Record<string, ComfyWidgetConstructor>
   bodyTop: HTMLElement
   bodyLeft: HTMLElement
   bodyRight: HTMLElement
@@ -167,6 +171,16 @@ export class ComfyApp extends EventTarget {
    */
   get shiftDown(): boolean {
     return useWorkspaceStore().shiftDown
+  }
+
+  /**
+   * @deprecated Use useWidgetStore().widgets instead
+   */
+  get widgets(): Record<string, ComfyWidgetConstructor> {
+    if (this.vueAppReady) {
+      return useWidgetStore().widgets
+    }
+    return ComfyWidgets
   }
 
   constructor() {
@@ -1559,10 +1573,7 @@ export class ComfyApp extends EventTarget {
       }
       const node = this.graph.getNodeById(detail.display_node || detail.node)
       if (node) {
-        // @ts-expect-error
-        if (node.onExecuted)
-          // @ts-expect-error
-          node.onExecuted(detail.output)
+        if (node.onExecuted) node.onExecuted(detail.output)
       }
     })
 
@@ -1661,7 +1672,6 @@ export class ComfyApp extends EventTarget {
     app.graph.onConfigure = function () {
       // Fire callbacks before the onConfigure, this is used by widget inputs to setup the config
       for (const node of app.graph.nodes) {
-        // @ts-expect-error
         node.onGraphConfigured?.()
       }
 
@@ -2088,7 +2098,6 @@ export class ComfyApp extends EventTarget {
     const nodeDefArray: ComfyNodeDef[] = Object.values(allNodeDefs)
     this.#invokeExtensions('beforeRegisterVueAppNodeDefs', nodeDefArray, this)
     nodeDefStore.updateNodeDefs(nodeDefArray)
-    nodeDefStore.widgets = this.widgets
   }
 
   /**
@@ -2114,7 +2123,11 @@ export class ComfyApp extends EventTarget {
     )
   }
 
-  getWidgetType(inputData, inputName) {
+  /**
+   * Remove the impl after groupNode jest tests are removed.
+   * @deprecated Use useWidgetStore().getWidgetType instead
+   */
+  getWidgetType(inputData, inputName: string) {
     const type = inputData[0]
 
     if (Array.isArray(type)) {
@@ -2267,13 +2280,6 @@ export class ComfyApp extends EventTarget {
 
   async registerNodesFromDefs(defs: Record<string, ComfyNodeDef>) {
     await this.#invokeExtensionsAsync('addCustomNodeDefs', defs)
-
-    // Generate list of known widgets
-    this.widgets = Object.assign(
-      {},
-      ComfyWidgets,
-      ...(await this.#invokeExtensionsAsync('getCustomWidgets')).filter(Boolean)
-    )
 
     // Register a node for each definition
     for (const nodeId in defs) {
