@@ -82,7 +82,7 @@ const setInitialPosition = () => {
     }
 
     x.value = (screenWidth - menuWidth) / 2
-    y.value = screenHeight - menuHeight - 10 // 10px margin from bottom
+    y.value = screenHeight - menuHeight - 15 // 15px margin from bottom
     captureLastDragState()
   }
 }
