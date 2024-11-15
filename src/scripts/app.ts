@@ -15,7 +15,6 @@ import {
   importA1111,
   getLatentMetadata
 } from './pnginfo'
-import { addDomClippingSetting } from './domWidget'
 import { createImageHost, calculateImageGrid } from './ui/imagePreview'
 import { DraggableList } from './ui/draggableList'
 import { applyTextReplacements, addStylesheet } from './utils'
@@ -66,6 +65,7 @@ import { type IBaseWidget } from '@comfyorg/litegraph/dist/types/widgets'
 import { workflowService } from '@/services/workflowService'
 import { type Point } from '@comfyorg/litegraph/dist/interfaces'
 import { useWidgetStore } from '@/stores/widgetStore'
+import { deserialiseAndCreate } from '@/extensions/core/vintageClipboard'
 
 export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview'
 
@@ -1814,7 +1814,6 @@ export class ComfyApp extends EventTarget {
     ])
     await this.#loadExtensions()
 
-    addDomClippingSetting()
     this.#addProcessMouseHandler()
     this.#addProcessKeyHandler()
     this.#addApiUpdateHandlers()
@@ -2301,8 +2300,14 @@ export class ComfyApp extends EventTarget {
         continue
       }
 
-      localStorage.setItem('litegrapheditor_clipboard', template.data)
-      app.canvas.pasteFromClipboard()
+      // Check for old clipboard format
+      const data = JSON.parse(template.data)
+      if (!data.reroutes) {
+        deserialiseAndCreate(template.data, app.canvas)
+      } else {
+        localStorage.setItem('litegrapheditor_clipboard', template.data)
+        app.canvas.pasteFromClipboard()
+      }
 
       // Move mouse position down to paste the next template below
 

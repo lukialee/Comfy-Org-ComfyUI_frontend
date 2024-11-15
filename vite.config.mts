@@ -95,6 +95,7 @@ const DEV_SERVER_COMFYUI_URL = process.env.DEV_SERVER_COMFYUI_URL || 'http://127
 export default defineConfig({
   base: '',
   server: {
+    host: '0.0.0.0',
     proxy: {
       '/internal': {
         target: DEV_SERVER_COMFYUI_URL,
@@ -176,6 +177,9 @@ export default defineConfig({
   },
 
   optimizeDeps: {
-    exclude: ['@comfyorg/litegraph']
+    exclude: [
+      '@comfyorg/litegraph',
+      '@comfyorg/comfyui-electron-types'
+    ]
   }
 }) as UserConfigExport

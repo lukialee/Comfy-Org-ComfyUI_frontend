@@ -51,6 +51,8 @@ const messages = {
         }
       }
     },
+    firstTimeUIMessage:
+      'This is the first time you use the new UI. Choose "Menu > Use New Menu > Disabled" to restore the old UI.',
     download: 'Download',
     loadAllFolders: 'Load All Folders',
     refresh: 'Refresh',
@@ -117,6 +119,7 @@ const messages = {
         sortOrder: 'Sort Order'
       },
       modelLibrary: 'Model Library',
+      downloads: 'Downloads',
       queueTab: {
         showFlatList: 'Show Flat List',
         backToAllTasks: 'Back to All Tasks',
@@ -168,12 +171,17 @@ const messages = {
       toggleLinkVisibility: 'Toggle Link Visibility'
     },
     electronFileDownload: {
+      inProgress: 'In Progress',
       pause: 'Pause Download',
+      paused: 'Paused',
       resume: 'Resume Download',
-      cancel: 'Cancel Download'
+      cancel: 'Cancel Download',
+      cancelled: 'Cancelled'
     }
   },
   zh: {
+    firstTimeUIMessage:
+      '这是您第一次使用新界面。选择“Menu > Use New Menu > Disabled”以恢复旧界面。',
     download: '下载',
     loadAllFolders: '加载所有文件夹',
     refresh: '刷新',
