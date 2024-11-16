@@ -1235,7 +1235,8 @@ export class ComfyApp extends EventTarget {
     const origProcessMouseDown = LGraphCanvas.prototype.processMouseDown
     LGraphCanvas.prototype.processMouseDown = function (e) {
       // prepare for ctrl+shift drag: zoom start
-      if (e.ctrlKey && e.shiftKey && e.buttons) {
+      const useFastZoom = useSettingStore().get('Comfy.Graph.CtrlShiftZoom')
+      if (useFastZoom && e.ctrlKey && e.shiftKey && !e.altKey && e.buttons) {
         self.zoom_drag_start = [e.x, e.y, this.ds.scale]
         return
       }
@@ -1580,10 +1581,7 @@ export class ComfyApp extends EventTarget {
     api.addEventListener('execution_start', ({ detail }) => {
       this.lastExecutionError = null
       this.graph.nodes.forEach((node) => {
-        // @ts-expect-error
-        if (node.onExecutionStart)
-          // @ts-expect-error
-          node.onExecutionStart()
+        if (node.onExecutionStart) node.onExecutionStart()
       })
     })
 
@@ -2583,8 +2581,8 @@ export class ComfyApp extends EventTarget {
         }
       }
 
-      const innerNodes = outerNode['getInnerNodes']
-        ? outerNode['getInnerNodes']()
+      const innerNodes = outerNode.getInnerNodes
+        ? outerNode.getInnerNodes()
         : [outerNode]
       for (const node of innerNodes) {
         if (node.isVirtualNode) {
@@ -2602,8 +2600,8 @@ export class ComfyApp extends EventTarget {
     for (const outerNode of graph.computeExecutionOrder(false)) {
       const skipNode = outerNode.mode === 2 || outerNode.mode === 4
       const innerNodes =
-        !skipNode && outerNode['getInnerNodes']
-          ? outerNode['getInnerNodes']()
+        !skipNode && outerNode.getInnerNodes
+          ? outerNode.getInnerNodes()
           : [outerNode]
       for (const node of innerNodes) {
         if (node.isVirtualNode) {
@@ -3069,7 +3067,6 @@ export class ComfyApp extends EventTarget {
     for (let nodeNum in this.graph.nodes) {
       const node = this.graph.nodes[nodeNum]
       const def = defs[node.type]
-      // @ts-expect-error
       // Allow primitive nodes to handle refresh
       node.refreshComboInNode?.(defs)
 
