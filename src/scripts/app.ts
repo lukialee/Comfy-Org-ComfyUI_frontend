@@ -1854,21 +1854,6 @@ export class ComfyApp extends EventTarget {
       await this.loadGraphData()
     }
 
-    /*
-     * Save current workflow strategy (ONGOING)
-     * STEP1: save only ...
-     *  - when canvas is moved, zoomed, updated (done, added necessary events on LiteGraph)
-     *  - when node is added or removed (done)
-     *  - when node is updated {
-     *    --> TODO: need to trigger this.graph.onNodeUpdated() each time a node or widget is updated
-     *  }
-     * STEP2: remove setInterval or continue to autosave (but every maybe 10 seconds?)
-     */
-
-    //setInterval(() => {
-    this.saveGraphData()
-    //}, 1000)
-
     this.#addDrawNodeHandler()
     this.#addDrawGroupsHandler()
     this.#addDropHandler()
