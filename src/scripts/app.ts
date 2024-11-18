@@ -143,6 +143,7 @@ export class ComfyApp extends EventTarget {
   lastNodeErrors: any[] | null
   lastExecutionError: { node_id: number } | null
   progress: { value: number; max: number } | null
+  ready: boolean
   configuringGraph: boolean
   isNewUserSession: boolean
   storageLocation: StorageLocation
@@ -1876,6 +1877,10 @@ export class ComfyApp extends EventTarget {
     this.#addWidgetLinkHandling()
 
     await this.#invokeExtensionsAsync('setup')
+
+    this.ready = true
+
+    this.dispatchEvent(new CustomEvent('ready'))
   }
 
   async #initGraph() {
@@ -1888,22 +1893,22 @@ export class ComfyApp extends EventTarget {
 
     this.graph.onNodeAdded = (node) => {
       this.logging.addEntry('Comfy.App', 'info', 'added node', node)
-      console.log('ComfyApp: added node', node)
+      // console.log('ComfyApp: added node', node)
     }
 
     this.graph.onNodeUpdated = (node) => {
       this.logging.addEntry('Comfy.App', 'info', 'updated node', node)
-      console.log('ComfyApp: updated node', node, node.mode)
+      // console.log('ComfyApp: updated node', node, node.mode)
     }
 
     this.graph.onNodeRemoved = (node) => {
       this.logging.addEntry('Comfy.App', 'info', 'removed node', node)
-      console.log('ComfyApp: removed node', node)
+      // console.log('ComfyApp: removed node', node)
     }
 
     this.graph.onInputsOutputsChange = () => {
       this.logging.addEntry('Comfy.App', 'info', 'onInputsOutputsChange')
-      console.log('ComfyApp: onInputsOutputsChange')
+      // console.log('ComfyApp: onInputsOutputsChange')
     }
 
     this.graph.onBeforeChange = (e) => {
@@ -1913,7 +1918,7 @@ export class ComfyApp extends EventTarget {
 
     this.graph.onAfterChange = (e) => {
       this.logging.addEntry('Comfy.App', 'info', 'onAfterChange', e)
-      console.log('ComfyApp: onAfterChange', e)
+      //console.log('ComfyApp: onAfterChange', e)
       this.saveGraphData()
     }
   }
@@ -3238,7 +3243,7 @@ export class ComfyApp extends EventTarget {
   fitViewToSelection() {
     if (!this.canvas) return
     this.canvas.fitViewToSelectionAnimated()
-    console.log('fitViewToSelection')
+    // console.log('fitViewToSelection')
     this.dispatchEvent(new CustomEvent('fitViewToSelection'))
   }
 
