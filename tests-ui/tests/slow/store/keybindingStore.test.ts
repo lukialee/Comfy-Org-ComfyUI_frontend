@@ -126,14 +126,14 @@ describe('useKeybindingStore', () => {
     expect(store.getKeybinding(keybinding2.combo)).toEqual(keybinding2)
   })
 
-  it('should throw an error when unsetting non-existent keybindings', () => {
+  it('should not throw an error when unsetting non-existent keybindings', () => {
     const store = useKeybindingStore()
     const keybinding = new KeybindingImpl({
       commandId: 'test.command',
       combo: { key: 'H', alt: true, shift: true }
     })
 
-    expect(() => store.unsetKeybinding(keybinding)).toThrow()
+    expect(() => store.unsetKeybinding(keybinding)).not.toThrow()
   })
 
   it('should remove unset keybinding when adding back a default keybinding', () => {
@@ -158,6 +158,78 @@ describe('useKeybindingStore', () => {
     expect(store.keybindings).toHaveLength(1)
     expect(store.getKeybinding(defaultKeybinding.combo)).toEqual(
       defaultKeybinding
+    )
+  })
+
+  it('Should accept same keybinding from default and user', () => {
+    const store = useKeybindingStore()
+    const keybinding = new KeybindingImpl({
+      commandId: 'test.command',
+      combo: { key: 'J', ctrl: true }
+    })
+    // Add default keybinding.
+    // This can happen when we change default keybindings.
+    store.addDefaultKeybinding(keybinding)
+    // Add user keybinding.
+    store.addUserKeybinding(keybinding)
+
+    expect(store.keybindings).toHaveLength(1)
+    expect(store.getKeybinding(keybinding.combo)).toEqual(keybinding)
+  })
+
+  it('Should keep previously customized keybindings after default keybindings change', () => {
+    // Initially command 'foo' was bound to 'K, Ctrl'. User unset it and bound the
+    // command to 'A, Ctrl'.
+    // Now we change the default keybindings of 'foo' to 'A, Ctrl'.
+    // The user customized keybinding should be kept.
+    const store = useKeybindingStore()
+
+    const userUnsetKeybindings = [
+      new KeybindingImpl({
+        commandId: 'foo',
+        combo: { key: 'K', ctrl: true }
+      })
+    ]
+
+    const userNewKeybindings = [
+      new KeybindingImpl({
+        commandId: 'foo',
+        combo: { key: 'A', ctrl: true }
+      })
+    ]
+
+    const newCoreKeybindings = [
+      new KeybindingImpl({
+        commandId: 'foo',
+        combo: { key: 'A', ctrl: true }
+      })
+    ]
+
+    for (const keybinding of newCoreKeybindings) {
+      store.addDefaultKeybinding(keybinding)
+    }
+
+    expect(store.keybindings).toHaveLength(1)
+    expect(store.getKeybinding(userNewKeybindings[0].combo)).toEqual(
+      userNewKeybindings[0]
+    )
+
+    for (const keybinding of userUnsetKeybindings) {
+      store.unsetKeybinding(keybinding)
+    }
+
+    expect(store.keybindings).toHaveLength(1)
+    expect(store.getKeybinding(userNewKeybindings[0].combo)).toEqual(
+      userNewKeybindings[0]
+    )
+
+    for (const keybinding of userNewKeybindings) {
+      store.addUserKeybinding(keybinding)
+    }
+
+    expect(store.keybindings).toHaveLength(1)
+    expect(store.getKeybinding(userNewKeybindings[0].combo)).toEqual(
+      userNewKeybindings[0]
     )
   })
 })

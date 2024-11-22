@@ -121,8 +121,7 @@ export const useKeybindingStore = defineStore('keybinding', () => {
 
   const keybindingByKeyCombo = computed<Record<string, KeybindingImpl>>(() => {
     const result: Record<string, KeybindingImpl> = {
-      ...defaultKeybindings.value,
-      ...userKeybindings.value
+      ...defaultKeybindings.value
     }
 
     for (const keybinding of Object.values(userUnsetKeybindings.value)) {
@@ -131,7 +130,11 @@ export const useKeybindingStore = defineStore('keybinding', () => {
         delete result[serializedCombo]
       }
     }
-    return result
+
+    return {
+      ...result,
+      ...userKeybindings.value
+    }
   })
 
   const keybindings = computed<KeybindingImpl[]>(() =>
@@ -218,7 +221,10 @@ export const useKeybindingStore = defineStore('keybinding', () => {
   function unsetKeybinding(keybinding: KeybindingImpl) {
     const serializedCombo = keybinding.combo.serialize()
     if (!(serializedCombo in keybindingByKeyCombo.value)) {
-      throw new Error(`Keybinding on ${keybinding.combo} does not exist`)
+      console.warn(
+        `Trying to unset non-exist keybinding: ${JSON.stringify(keybinding)}`
+      )
+      return
     }
 
     if (userKeybindings.value[serializedCombo]?.equals(keybinding)) {
@@ -231,7 +237,7 @@ export const useKeybindingStore = defineStore('keybinding', () => {
       return
     }
 
-    throw new Error(`NOT_REACHED`)
+    throw new Error(`Unknown keybinding: ${JSON.stringify(keybinding)}`)
   }
 
   /**

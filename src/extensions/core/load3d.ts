@@ -4,6 +4,7 @@ import { useToastStore } from '@/stores/toastStore'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
+import { GLTF } from 'three/examples/jsm/loaders/GLTFLoader'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader'
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader'
@@ -90,9 +91,7 @@ class Load3d {
   fbxLoader: FBXLoader
   stlLoader: STLLoader
   currentModel: THREE.Object3D | null = null
-  currentAnimation: THREE.AnimationMixer | null = null
-  animationActions: THREE.AnimationAction[] = []
-  isAnimationPlaying: boolean = false
+  originalModel: THREE.Object3D | THREE.BufferGeometry | GLTF | null = null
   node: any
   private animationFrameId: number | null = null
   gridHelper: THREE.GridHelper
@@ -101,10 +100,11 @@ class Load3d {
   normalMaterial: THREE.MeshNormalMaterial
   standardMaterial: THREE.MeshStandardMaterial
   wireframeMaterial: THREE.MeshBasicMaterial
+  depthMaterial: THREE.MeshDepthMaterial
   originalMaterials: WeakMap<THREE.Mesh, THREE.Material | THREE.Material[]> =
     new WeakMap()
 
-  materialMode: 'original' | 'normal' | 'wireframe' = 'original'
+  materialMode: 'original' | 'normal' | 'wireframe' | 'depth' = 'original'
   currentUpDirection: 'original' | '-x' | '+x' | '-y' | '+y' | '-z' | '+z' =
     'original'
   originalRotation: THREE.Euler | null = null
@@ -173,6 +173,11 @@ class Load3d {
       opacity: 1.0
     })
 
+    this.depthMaterial = new THREE.MeshDepthMaterial({
+      depthPacking: THREE.BasicDepthPacking,
+      side: THREE.DoubleSide
+    })
+
     this.standardMaterial = this.createSTLMaterial()
 
     this.animate()
@@ -222,13 +227,63 @@ class Load3d {
     this.renderer.render(this.scene, this.activeCamera)
   }
 
-  setMaterialMode(mode: 'original' | 'normal' | 'wireframe') {
+  setMaterialMode(mode: 'original' | 'normal' | 'wireframe' | 'depth') {
     this.materialMode = mode
 
     if (this.currentModel) {
+      if (mode === 'depth') {
+        this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace
+      } else {
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace
+      }
+
       this.currentModel.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           switch (mode) {
+            case 'depth':
+              if (!this.originalMaterials.has(child)) {
+                this.originalMaterials.set(child, child.material)
+              }
+              const depthMat = new THREE.MeshDepthMaterial({
+                depthPacking: THREE.BasicDepthPacking,
+                side: THREE.DoubleSide
+              })
+
+              depthMat.onBeforeCompile = (shader) => {
+                shader.uniforms.cameraType = {
+                  value:
+                    this.activeCamera instanceof THREE.OrthographicCamera
+                      ? 1.0
+                      : 0.0
+                }
+
+                shader.fragmentShader = `
+                  uniform float cameraType;
+                  ${shader.fragmentShader}
+                `
+
+                shader.fragmentShader = shader.fragmentShader.replace(
+                  /gl_FragColor\s*=\s*vec4\(\s*vec3\(\s*1.0\s*-\s*fragCoordZ\s*\)\s*,\s*opacity\s*\)\s*;/,
+                  `
+                    float depth = 1.0 - fragCoordZ;
+                    if (cameraType > 0.5) {
+                      depth = pow(depth, 400.0);
+                    } else {
+                      depth = pow(depth, 0.6);
+                    }
+                    gl_FragColor = vec4(vec3(depth), opacity);
+                  `
+                )
+              }
+
+              depthMat.customProgramCacheKey = () => {
+                return this.activeCamera instanceof THREE.OrthographicCamera
+                  ? 'ortho'
+                  : 'persp'
+              }
+
+              child.material = depthMat
+              break
             case 'normal':
               if (!this.originalMaterials.has(child)) {
                 this.originalMaterials.set(child, child.material)
@@ -267,7 +322,6 @@ class Load3d {
         }
       })
 
-      this.renderer.outputColorSpace = THREE.SRGBColorSpace
       this.renderer.render(this.scene, this.activeCamera)
     }
   }
@@ -304,6 +358,8 @@ class Load3d {
   }
 
   toggleCamera(cameraType?: 'perspective' | 'orthographic') {
+    const oldCamera = this.activeCamera
+
     const position = this.activeCamera.position.clone()
     const rotation = this.activeCamera.rotation.clone()
     const target = this.controls.target.clone()
@@ -328,6 +384,10 @@ class Load3d {
 
     this.activeCamera.position.copy(position)
     this.activeCamera.rotation.copy(rotation)
+
+    if (this.materialMode === 'depth' && oldCamera !== this.activeCamera) {
+      this.setMaterialMode('depth')
+    }
 
     this.controls.object = this.activeCamera
     this.controls.target.copy(target)
@@ -370,15 +430,6 @@ class Load3d {
   }
 
   clearModel() {
-    if (this.currentAnimation) {
-      this.animationActions.forEach((action) => {
-        action.stop()
-      })
-      this.currentAnimation = null
-    }
-    this.animationActions = []
-    this.isAnimationPlaying = false
-
     const objectsToRemove: THREE.Object3D[] = []
 
     this.scene.traverse((object) => {
@@ -410,6 +461,10 @@ class Load3d {
       }
     })
 
+    this.resetScene()
+  }
+
+  protected resetScene() {
     this.currentModel = null
     this.originalRotation = null
 
@@ -446,16 +501,7 @@ class Load3d {
 
     this.materialMode = 'original'
     this.originalMaterials = new WeakMap()
-  }
-
-  toggleAnimation(play?: boolean) {
-    if (!this.currentAnimation || this.animationActions.length === 0) return
-
-    this.isAnimationPlaying = play ?? !this.isAnimationPlaying
-
-    this.animationActions.forEach((action) => {
-      action.paused = !this.isAnimationPlaying
-    })
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace
   }
 
   remove() {
@@ -467,6 +513,80 @@ class Load3d {
     this.renderer.dispose()
     this.renderer.domElement.remove()
     this.scene.clear()
+  }
+
+  protected async loadModelInternal(
+    url: string,
+    fileExtension: string
+  ): Promise<THREE.Object3D | null> {
+    let model: THREE.Object3D | null = null
+
+    switch (fileExtension) {
+      case 'stl':
+        const geometry = await this.stlLoader.loadAsync(url)
+
+        this.originalModel = geometry
+
+        geometry.computeVertexNormals()
+        const mesh = new THREE.Mesh(geometry, this.standardMaterial)
+        const group = new THREE.Group()
+        group.add(mesh)
+        model = group
+        break
+
+      case 'fbx':
+        const fbxModel = await this.fbxLoader.loadAsync(url)
+
+        this.originalModel = fbxModel
+
+        model = fbxModel
+
+        fbxModel.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            this.originalMaterials.set(child, child.material)
+          }
+        })
+
+        break
+
+      case 'obj':
+        if (this.materialMode === 'original') {
+          const mtlUrl = url.replace(/\.obj([^.]*$)/, '.mtl$1')
+          try {
+            const materials = await this.mtlLoader.loadAsync(mtlUrl)
+            materials.preload()
+            this.objLoader.setMaterials(materials)
+          } catch (e) {
+            console.log(
+              'No MTL file found or error loading it, continuing without materials'
+            )
+          }
+        }
+        model = await this.objLoader.loadAsync(url)
+        model.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            this.originalMaterials.set(child, child.material)
+          }
+        })
+        break
+
+      case 'gltf':
+      case 'glb':
+        const gltf = await this.gltfLoader.loadAsync(url)
+
+        this.originalModel = gltf
+
+        model = gltf.scene
+        gltf.scene.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.geometry.computeVertexNormals()
+            this.originalMaterials.set(child, child.material)
+          }
+        })
+        break
+    }
+
+    return model
   }
 
   async loadModel(url: string, originalFileName?: string) {
@@ -486,145 +606,76 @@ class Load3d {
         return
       }
 
-      let model: THREE.Object3D | null = null
-
-      switch (fileExtension) {
-        case 'stl':
-          const geometry = await this.stlLoader.loadAsync(url)
-          geometry.computeVertexNormals()
-
-          const mesh = new THREE.Mesh(geometry, this.standardMaterial)
-
-          const group = new THREE.Group()
-          group.add(mesh)
-
-          model = group
-          break
-
-        case 'fbx':
-          const fbxModel = await this.fbxLoader.loadAsync(url)
-          model = fbxModel
-
-          fbxModel.traverse((child) => {
-            if (child instanceof THREE.Mesh) {
-              this.originalMaterials.set(child, child.material)
-            }
-          })
-
-          if (fbxModel.animations.length > 0) {
-            this.currentAnimation = new THREE.AnimationMixer(fbxModel)
-            this.animationActions = fbxModel.animations.map((clip) => {
-              const action = this.currentAnimation!.clipAction(clip)
-              action.clampWhenFinished = true
-              action.play()
-              action.paused = true
-              return action
-            })
-          }
-          break
-
-        case 'obj':
-          if (this.materialMode === 'original') {
-            const mtlUrl = url.replace(/\.obj([^.]*$)/, '.mtl$1')
-            try {
-              const materials = await this.mtlLoader.loadAsync(mtlUrl)
-              materials.preload()
-              this.objLoader.setMaterials(materials)
-            } catch (e) {
-              console.log(
-                'No MTL file found or error loading it, continuing without materials'
-              )
-            }
-          }
-
-          model = await this.objLoader.loadAsync(url)
-
-          model.traverse((child) => {
-            if (child instanceof THREE.Mesh) {
-              this.originalMaterials.set(child, child.material)
-            }
-          })
-          break
-
-        case 'gltf':
-        case 'glb':
-          const gltf = await this.gltfLoader.loadAsync(url)
-          model = gltf.scene
-
-          gltf.scene.traverse((child) => {
-            if (child instanceof THREE.Mesh) {
-              child.geometry.computeVertexNormals()
-              this.originalMaterials.set(child, child.material)
-            }
-          })
-          break
-
-        default:
-          useToastStore().addAlert(`Unsupported file format: ${fileExtension}`)
-          return
-      }
+      let model = await this.loadModelInternal(url, fileExtension)
 
       if (model) {
         this.currentModel = model
-
-        const box = new THREE.Box3().setFromObject(model)
-        const size = box.getSize(new THREE.Vector3())
-        const center = box.getCenter(new THREE.Vector3())
-
-        const maxDim = Math.max(size.x, size.y, size.z)
-        const targetSize = 5
-        const scale = targetSize / maxDim
-        model.scale.multiplyScalar(scale)
-
-        box.setFromObject(model)
-        box.getCenter(center)
-        box.getSize(size)
-
-        model.position.set(-center.x, -box.min.y, -center.z)
-
-        this.scene.add(model)
-
-        if (this.materialMode !== 'original') {
-          this.setMaterialMode(this.materialMode)
-        }
-
-        if (this.currentUpDirection !== 'original') {
-          this.setUpDirection(this.currentUpDirection)
-        }
-
-        const distance = Math.max(size.x, size.z) * 2
-        const height = size.y * 2
-
-        this.perspectiveCamera.position.set(distance, height, distance)
-        this.orthographicCamera.position.set(distance, height, distance)
-
-        if (this.activeCamera === this.perspectiveCamera) {
-          this.perspectiveCamera.lookAt(0, size.y / 2, 0)
-          this.perspectiveCamera.updateProjectionMatrix()
-        } else {
-          const frustumSize = Math.max(size.x, size.y, size.z) * 2
-          const aspect =
-            this.renderer.domElement.width / this.renderer.domElement.height
-          this.orthographicCamera.left = (-frustumSize * aspect) / 2
-          this.orthographicCamera.right = (frustumSize * aspect) / 2
-          this.orthographicCamera.top = frustumSize / 2
-          this.orthographicCamera.bottom = -frustumSize / 2
-          this.orthographicCamera.lookAt(0, size.y / 2, 0)
-          this.orthographicCamera.updateProjectionMatrix()
-        }
-
-        this.controls.target.set(0, size.y / 2, 0)
-        this.controls.update()
-
-        this.renderer.outputColorSpace = THREE.SRGBColorSpace
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-        this.renderer.toneMappingExposure = 1
-
-        this.handleResize()
+        await this.setupModel(model)
       }
     } catch (error) {
       console.error('Error loading model:', error)
     }
+  }
+
+  protected async setupModel(model: THREE.Object3D) {
+    const box = new THREE.Box3().setFromObject(model)
+    const size = box.getSize(new THREE.Vector3())
+    const center = box.getCenter(new THREE.Vector3())
+
+    const maxDim = Math.max(size.x, size.y, size.z)
+    const targetSize = 5
+    const scale = targetSize / maxDim
+    model.scale.multiplyScalar(scale)
+
+    box.setFromObject(model)
+    box.getCenter(center)
+    box.getSize(size)
+
+    model.position.set(-center.x, -box.min.y, -center.z)
+
+    this.scene.add(model)
+
+    if (this.materialMode !== 'original') {
+      this.setMaterialMode(this.materialMode)
+    }
+
+    if (this.currentUpDirection !== 'original') {
+      this.setUpDirection(this.currentUpDirection)
+    }
+
+    await this.setupCamera(size)
+  }
+
+  protected async setupCamera(size: THREE.Vector3) {
+    const distance = Math.max(size.x, size.z) * 2
+    const height = size.y * 2
+
+    this.perspectiveCamera.position.set(distance, height, distance)
+    this.orthographicCamera.position.set(distance, height, distance)
+
+    if (this.activeCamera === this.perspectiveCamera) {
+      this.perspectiveCamera.lookAt(0, size.y / 2, 0)
+      this.perspectiveCamera.updateProjectionMatrix()
+    } else {
+      const frustumSize = Math.max(size.x, size.y, size.z) * 2
+      const aspect =
+        this.renderer.domElement.width / this.renderer.domElement.height
+      this.orthographicCamera.left = (-frustumSize * aspect) / 2
+      this.orthographicCamera.right = (frustumSize * aspect) / 2
+      this.orthographicCamera.top = frustumSize / 2
+      this.orthographicCamera.bottom = -frustumSize / 2
+      this.orthographicCamera.lookAt(0, size.y / 2, 0)
+      this.orthographicCamera.updateProjectionMatrix()
+    }
+
+    this.controls.target.set(0, size.y / 2, 0)
+    this.controls.update()
+
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
+    this.renderer.toneMappingExposure = 1
+
+    this.handleResize()
   }
 
   handleResize() {
@@ -656,11 +707,6 @@ class Load3d {
 
   animate = () => {
     requestAnimationFrame(this.animate)
-
-    if (this.currentAnimation && this.isAnimationPlaying) {
-      const delta = this.clock.getDelta()
-      this.currentAnimation.update(delta)
-    }
 
     this.controls.update()
     this.renderer.render(this.scene, this.activeCamera)
@@ -751,6 +797,149 @@ class Load3d {
   }
 }
 
+class Load3dAnimation extends Load3d {
+  currentAnimation: THREE.AnimationMixer | null = null
+  animationActions: THREE.AnimationAction[] = []
+  animationClips: THREE.AnimationClip[] = []
+  selectedAnimationIndex: number = 0
+  isAnimationPlaying: boolean = false
+
+  animationSpeed: number = 1.0
+
+  constructor(container: Element | HTMLElement) {
+    super(container)
+  }
+
+  protected async setupModel(model: THREE.Object3D) {
+    await super.setupModel(model)
+
+    if (this.currentAnimation) {
+      this.currentAnimation.stopAllAction()
+      this.animationActions = []
+    }
+
+    let animations: THREE.AnimationClip[] = []
+    if (model.animations?.length > 0) {
+      animations = model.animations
+    } else if (this.originalModel && 'animations' in this.originalModel) {
+      animations = (
+        this.originalModel as unknown as { animations: THREE.AnimationClip[] }
+      ).animations
+    }
+
+    if (animations.length > 0) {
+      this.animationClips = animations
+      if (model.type === 'Scene') {
+        this.currentAnimation = new THREE.AnimationMixer(model)
+      } else {
+        this.currentAnimation = new THREE.AnimationMixer(this.currentModel!)
+      }
+
+      if (this.animationClips.length > 0) {
+        this.updateSelectedAnimation(0)
+      }
+    }
+  }
+
+  setAnimationSpeed(speed: number) {
+    this.animationSpeed = speed
+    this.animationActions.forEach((action) => {
+      action.setEffectiveTimeScale(speed)
+    })
+  }
+
+  updateSelectedAnimation(index: number) {
+    if (
+      !this.currentAnimation ||
+      !this.animationClips ||
+      index >= this.animationClips.length
+    ) {
+      console.warn('Invalid animation update request')
+      return
+    }
+
+    this.animationActions.forEach((action) => {
+      action.stop()
+    })
+    this.currentAnimation.stopAllAction()
+    this.animationActions = []
+
+    this.selectedAnimationIndex = index
+    const clip = this.animationClips[index]
+
+    const action = this.currentAnimation.clipAction(clip)
+
+    action.setEffectiveTimeScale(this.animationSpeed)
+
+    action.reset()
+    action.clampWhenFinished = false
+    action.loop = THREE.LoopRepeat
+
+    if (this.isAnimationPlaying) {
+      action.play()
+    } else {
+      action.play()
+      action.paused = true
+    }
+
+    this.animationActions = [action]
+  }
+
+  clearModel() {
+    if (this.currentAnimation) {
+      this.animationActions.forEach((action) => {
+        action.stop()
+      })
+      this.currentAnimation = null
+    }
+    this.animationActions = []
+    this.animationClips = []
+    this.selectedAnimationIndex = 0
+    this.isAnimationPlaying = false
+    this.animationSpeed = 1.0
+
+    super.clearModel()
+  }
+
+  getAnimationNames(): string[] {
+    return this.animationClips.map((clip, index) => {
+      return clip.name || `Animation ${index + 1}`
+    })
+  }
+
+  toggleAnimation(play?: boolean) {
+    if (!this.currentAnimation || this.animationActions.length === 0) {
+      console.warn('No animation to toggle')
+      return
+    }
+
+    this.isAnimationPlaying = play ?? !this.isAnimationPlaying
+
+    this.animationActions.forEach((action) => {
+      if (this.isAnimationPlaying) {
+        action.paused = false
+        if (action.time === 0 || action.time === action.getClip().duration) {
+          action.reset()
+        }
+      } else {
+        action.paused = true
+      }
+    })
+  }
+
+  animate = () => {
+    requestAnimationFrame(this.animate)
+
+    if (this.currentAnimation && this.isAnimationPlaying) {
+      const delta = this.clock.getDelta()
+      this.currentAnimation.update(delta)
+    }
+
+    this.controls.update()
+    this.renderer.render(this.scene, this.activeCamera)
+  }
+}
+
 function splitFilePath(path: string): [string, string] {
   const folder_separator = path.lastIndexOf('/')
   if (folder_separator === -1) {
@@ -777,6 +966,17 @@ function getResourceURL(
   return `/view?${params}`
 }
 
+const load3dCSSCLASS = `display: flex;
+    flex-direction: column;
+    background: transparent;
+    flex: 1;
+    position: relative;
+    overflow: hidden;`
+
+const load3dCanvasCSSCLASS = `display: flex;
+    width: 100% !important;
+    height: 100% !important;`
+
 const containerToLoad3D = new Map()
 
 function configureLoad3D(
@@ -789,16 +989,17 @@ function configureLoad3D(
   material: IWidget,
   bgColor: IWidget,
   lightIntensity: IWidget,
-  upDirection: IWidget
+  upDirection: IWidget,
+  postModelUpdateFunc?: (load3d: Load3d) => void
 ) {
-  const onModelWidgetUpdate = () => {
+  const onModelWidgetUpdate = async () => {
     if (modelWidget.value) {
       const filename = modelWidget.value as string
       const modelUrl = api.apiURL(
         getResourceURL(...splitFilePath(filename), loadFolder)
       )
 
-      load3d.loadModel(modelUrl, filename)
+      await load3d.loadModel(modelUrl, filename)
 
       load3d.setMaterialMode(
         material.value as 'original' | 'normal' | 'wireframe'
@@ -814,6 +1015,10 @@ function configureLoad3D(
           | '-z'
           | '+z'
       )
+
+      if (postModelUpdateFunc) {
+        postModelUpdateFunc(load3d)
+      }
     }
   }
 
@@ -918,17 +1123,11 @@ app.registerExtension({
 
     style.innerText = `
         .comfy-load-3d {
-          display: flex;
-          flex-direction: column;
-          background: transparent;
-          flex: 1;
-          position: relative;
-          overflow: hidden;
+          ${load3dCSSCLASS}
         }
         
         .comfy-load-3d canvas {
-          width: 100% !important;
-          height: 100% !important;
+          ${load3dCanvasCSSCLASS}
         }
       `
     document.head.appendChild(style)
@@ -988,8 +1187,6 @@ app.registerExtension({
     const h = node.widgets.find((w: IWidget) => w.name === 'height')
 
     sceneWidget.serializeValue = async () => {
-      load3d.toggleAnimation(false)
-
       const imageData = await load3d.captureScene(w.value, h.value)
 
       const blob = await fetch(imageData).then((r) => r.blob())
@@ -1052,6 +1249,240 @@ app.registerExtension({
       }
     })
 
+    node.setSize([Math.max(oldWidth, 300), Math.max(oldHeight, 550)])
+  }
+})
+
+app.registerExtension({
+  name: 'Comfy.Load3DAnimation',
+
+  getCustomWidgets(app) {
+    return {
+      LOAD_3D_ANIMATION(node, inputName) {
+        let load3dNode = app.graph._nodes.filter(
+          (wi) => wi.type == 'Load3DAnimation'
+        )
+
+        const container = document.createElement('div')
+        container.id = `comfy-load-3d-animation-${load3dNode.length}`
+        container.classList.add('comfy-load-3d-animation')
+
+        const load3d = new Load3dAnimation(container)
+
+        containerToLoad3D.set(container.id, load3d)
+
+        node.onResize = function () {
+          if (load3d) {
+            load3d.handleResize()
+          }
+        }
+
+        const origOnRemoved = node.onRemoved
+
+        node.onRemoved = function () {
+          if (load3d) {
+            load3d.remove()
+          }
+
+          containerToLoad3D.delete(container.id)
+
+          origOnRemoved?.apply(this, [])
+        }
+
+        node.onDrawBackground = function () {
+          load3d.renderer.domElement.hidden = this.flags.collapsed ?? false
+        }
+
+        return {
+          widget: node.addDOMWidget(inputName, 'LOAD_3D_ANIMATION', container)
+        }
+      }
+    }
+  },
+
+  init() {
+    const style = document.createElement('style')
+
+    style.innerText = `
+        .comfy-load-3d-animation {
+          ${load3dCSSCLASS}
+        }
+        
+        .comfy-load-3d-animation canvas {
+          ${load3dCanvasCSSCLASS}
+        }
+      `
+    document.head.appendChild(style)
+  },
+
+  async nodeCreated(node) {
+    if (node.constructor.comfyClass !== 'Load3DAnimation') return
+
+    const [oldWidth, oldHeight] = node.size
+
+    await nextTick()
+
+    const sceneWidget = node.widgets.find((w: IWidget) => w.name === 'image')
+
+    const container = sceneWidget.element
+
+    const load3d = containerToLoad3D.get(container.id)
+
+    const modelWidget = node.widgets.find(
+      (w: IWidget) => w.name === 'model_file'
+    )
+
+    const showGrid = node.widgets.find((w: IWidget) => w.name === 'show_grid')
+
+    const cameraType = node.widgets.find(
+      (w: IWidget) => w.name === 'camera_type'
+    )
+
+    const view = node.widgets.find((w: IWidget) => w.name === 'view')
+
+    const material = node.widgets.find((w: IWidget) => w.name === 'material')
+
+    const bgColor = node.widgets.find((w: IWidget) => w.name === 'bg_color')
+
+    const lightIntensity = node.widgets.find(
+      (w: IWidget) => w.name === 'light_intensity'
+    )
+
+    const upDirection = node.widgets.find(
+      (w: IWidget) => w.name === 'up_direction'
+    )
+
+    const animationSelect = node.addWidget('combo', 'animation', '', () => '', {
+      values: []
+    }) as IWidget
+
+    animationSelect.callback = (value: number) => {
+      const names = load3d.getAnimationNames()
+      const index = names.indexOf(value)
+
+      if (index !== -1) {
+        const wasPlaying = load3d.isAnimationPlaying
+
+        if (wasPlaying) {
+          load3d.toggleAnimation(false)
+        }
+
+        load3d.updateSelectedAnimation(index)
+
+        if (wasPlaying) {
+          load3d.toggleAnimation(true)
+        }
+      }
+    }
+
+    const speedSelect = node.widgets.find(
+      (w: IWidget) => w.name === 'animation_speed'
+    )
+
+    speedSelect.callback = (value: string) => {
+      const load3d = containerToLoad3D.get(container.id) as Load3dAnimation
+      if (load3d) {
+        load3d.setAnimationSpeed(parseFloat(value))
+      }
+    }
+
+    configureLoad3D(
+      load3d,
+      'input',
+      modelWidget,
+      showGrid,
+      cameraType,
+      view,
+      material,
+      bgColor,
+      lightIntensity,
+      upDirection,
+      (load3d: Load3d) => {
+        const animationLoad3d = load3d as Load3dAnimation
+        const names = animationLoad3d.getAnimationNames()
+        animationSelect.options.values = names
+        if (names.length) {
+          animationSelect.value = names[0]
+        }
+      }
+    )
+
+    const w = node.widgets.find((w: IWidget) => w.name === 'width')
+    const h = node.widgets.find((w: IWidget) => w.name === 'height')
+
+    sceneWidget.serializeValue = async () => {
+      load3d.toggleAnimation(false)
+
+      const imageData = await load3d.captureScene(w.value, h.value)
+
+      const blob = await fetch(imageData).then((r) => r.blob())
+      const name = `scene_${Date.now()}.png`
+      const file = new File([blob], name)
+
+      const body = new FormData()
+      body.append('image', file)
+      body.append('subfolder', 'threed')
+      body.append('type', 'temp')
+
+      const resp = await api.fetchApi('/upload/image', {
+        method: 'POST',
+        body
+      })
+
+      if (resp.status !== 200) {
+        const err = `Error uploading scene capture: ${resp.status} - ${resp.statusText}`
+        useToastStore().addAlert(err)
+        throw new Error(err)
+      }
+
+      const data = await resp.json()
+      return `threed/${data.name} [temp]`
+    }
+
+    const fileInput = document.createElement('input')
+    fileInput.type = 'file'
+    fileInput.accept = '.fbx,glb,gltf'
+    fileInput.style.display = 'none'
+    fileInput.onchange = () => {
+      if (fileInput.files?.length) {
+        const modelWidget = node.widgets.find(
+          (w: IWidget) => w.name === 'model_file'
+        )
+        uploadFile(
+          modelWidget,
+          load3d,
+          fileInput.files[0],
+          true,
+          fileInput
+        ).catch((error) => {
+          console.error('File upload failed:', error)
+          useToastStore().addAlert('File upload failed')
+        })
+      }
+    }
+
+    node.addWidget('button', 'upload 3d model', 'upload3dmodel', () => {
+      fileInput.click()
+    })
+
+    node.addWidget('button', 'clear', 'clear', () => {
+      load3d.clearModel()
+      const modelWidget = node.widgets.find(
+        (w: IWidget) => w.name === 'model_file'
+      )
+      if (modelWidget) {
+        modelWidget.value = ''
+      }
+      if (animationSelect) {
+        animationSelect.options.values = []
+        animationSelect.value = ''
+      }
+
+      if (speedSelect) {
+        speedSelect.value = '1'
+      }
+    })
+
     node.addWidget('button', 'Play/Pause Animation', 'toggle_animation', () => {
       load3d.toggleAnimation()
     })
@@ -1110,17 +1541,11 @@ app.registerExtension({
 
     style.innerText = `
         .comfy-preview-3d {
-          display: flex;
-          flex-direction: column;
-          background: transparent;
-          flex: 1;
-          position: relative;
-          overflow: hidden;
+          ${load3dCSSCLASS}
         }
         
         .comfy-preview-3d canvas {
-          width: 100% !important;
-          height: 100% !important;
+          ${load3dCanvasCSSCLASS}
         }
       `
     document.head.appendChild(style)

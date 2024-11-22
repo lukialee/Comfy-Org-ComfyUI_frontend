@@ -47,8 +47,22 @@ const messages = {
           systemInfo: 'Operating system and app version',
           personalInformation: 'Personal information',
           workflowContent: 'Workflow content',
-          fileSystemInformation: 'File system information'
+          fileSystemInformation: 'File system information',
+          workflowContents: 'Workflow contents',
+          customNodeConfigurations: 'Custom node configurations'
         }
+      }
+    },
+    serverStart: {
+      reinstall: 'Reinstall',
+      reportIssue: 'Report Issue',
+      openLogs: 'Open Logs',
+      process: {
+        'initial-state': 'Loading...',
+        'python-setup': 'Setting up Python Environment...',
+        'starting-server': 'Starting ComfyUI server...',
+        ready: 'Finishing...',
+        error: 'Unable to start ComfyUI'
       }
     },
     firstTimeUIMessage:
@@ -126,7 +140,12 @@ const messages = {
         backToAllTasks: 'Back to All Tasks',
         containImagePreview: 'Fill Image Preview',
         coverImagePreview: 'Fit Image Preview',
-        clearPendingTasks: 'Clear Pending Tasks'
+        clearPendingTasks: 'Clear Pending Tasks',
+        filter: 'Filter Outputs',
+        filters: {
+          hideCached: 'Hide Cached',
+          hideCanceled: 'Hide Canceled'
+        }
       }
     },
     menu: {
@@ -143,8 +162,8 @@ const messages = {
         'The workflow will be queued instantly after a generation finishes',
       change: 'On Change',
       changeTooltip: 'The workflow will be queued once a change is made',
-      queueWorkflow: 'Queue workflow',
-      queueWorkflowFront: 'Queue workflow (Insert at Front)',
+      queueWorkflow: 'Queue workflow (Shift to queue at front)',
+      queueWorkflowFront: 'Queue workflow at front',
       queue: 'Queue',
       interrupt: 'Cancel current run',
       refresh: 'Refresh node definitions',
@@ -270,8 +289,8 @@ const messages = {
       instantTooltip: '工作流将会在生成完成后立即执行',
       change: '变动',
       changeTooltip: '工作流将会在改变后执行',
-      queueWorkflow: '执行工作流',
-      queueWorkflowFront: '执行工作流 (队列首)',
+      queueWorkflow: '执行 (Shift 执行到队列首)',
+      queueWorkflowFront: '执行到队列首',
       queue: '队列',
       interrupt: '取消当前任务',
       refresh: '刷新节点',
@@ -391,7 +410,7 @@ const messages = {
       change: 'При изменении',
       changeTooltip:
         'Рабочий процесс будет поставлен в очередь после внесения изменений',
-      queueWorkflow: 'Очередь рабочего процесса',
+      queueWorkflow: 'Очередь рабочего процесса (Shift для вставки спереди)',
       queueWorkflowFront: 'Очередь рабочего процесса (Вставка спереди)',
       queue: 'Очередь',
       interrupt: 'Отменить текущее выполнение',
