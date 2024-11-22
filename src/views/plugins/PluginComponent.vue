@@ -8,9 +8,9 @@
     leave-to-class="transform -translate-y-full"
   >
     <dt
-      v-if="plugin.visible && pluginInstance?.overlay"
+      v-if="pluginInstance?.visible.value && pluginInstance?.overlay.value"
       class="ComfyPluginOverlay fixed z-[5000] inset-0 backdrop-blur-sm bg-purple-950/60"
-      @click="close()"
+      @click="closePluginModal()"
     ></dt>
   </transition>
 
@@ -23,9 +23,12 @@
     leave-to-class="transform translate-y-full"
   >
     <section
-      v-show="plugin.visible"
-      ref="ComfyPluginWrapper"
-      :style="{ width: plugin.width + 'px', height: plugin.height + 'px' }"
+      v-show="pluginInstance?.visible.value"
+      ref="pluginModalRef"
+      :style="{ 
+        width: pluginInstance?.width.value + 'px', 
+        height: pluginInstance?.height.value + 'px' 
+      }"
       :class="[
         plugin.transparent ? 'bg-transparent' : 'bg-white dark:bg-zinc-950'
       ]"
@@ -44,7 +47,7 @@
             <i-material-symbols-refresh-rounded class="w-6 h-6" />
           </button>
           <button
-            @click="close()"
+            @click="closePluginModal()"
             class="cursor-pointer bg-zinc-300 rounded-md outline-none border-none flex items-center justify-center text-zinc-500 px-3 py-1 hover:text-blue-100 hover:bg-blue-500 focus:outline-none"
           >
             <i-material-symbols-close-rounded class="w-6 h-6" />
@@ -53,7 +56,7 @@
       </header>
 
       <main
-        ref="iframeWrapperRef"
+        ref="iframeParentRef"
         class="ComfyPluginBody relative w-full h-[calc(100%-3rem)] overflow-hidden"
       >
         <div
@@ -68,112 +71,94 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
-import ComfyPluginFrame from './host/ComfyPluginFrame'
+import { app } from '@/scripts/app'
+import { ref, shallowRef, computed, onMounted, onBeforeUnmount, PropType, watch } from 'vue'
+import ComfyPluginFrame from '@/scripts/core/ComfyPluginFrame'
 import SpinLoader from './SpinLoader.vue'
-import { usePluginStore } from '@/stores/pluginStore'
+import { pluginManager, type ComfyPlugin } from '@/scripts/core/PluginManager'
 
 const emit = defineEmits(['close'])
 
 const props = defineProps({
-  plugin: <any>{
-    id: { type: String, required: true },
-    name: { type: String, default: '' },
-    url: { type: String, required: true },
-    enabled: { type: Boolean, default: true },
-    visible: { type: Boolean, default: false }
+  plugin: {
+    type: Object as PropType<ComfyPlugin>,
+    required: true
   }
 })
 
 const loaded = ref(false)
-const overlayVisible = ref(false)
-const pluginStore = usePluginStore()
-const pluginInstance = new ComfyPluginFrame()
-const iframeWrapperRef = ref<HTMLElement | null>(null)
-const ComfyPluginWrapper = ref<HTMLElement | null>(null)
+const pluginInstance = shallowRef<ComfyPluginFrame | null>(null)
+const iframeParentRef = ref<HTMLElement | null>(null)
+const pluginModalRef = ref<HTMLElement | null>(null)
 
-const close = () => {
-  pluginStore.setPluginVisibility(props.plugin.id, false)
+const closePluginModal = () => {
+  if (!pluginInstance.value) return
+  
+  console.log('PluginComponent: Closing plugin:', props.plugin.id)
+  pluginInstance.value.setVisibility(false)
   emit('close', props.plugin)
-}
-
-watch(
-  () => props.plugin.url,
-  (newUrl) => {
-    if (newUrl) {
-      console.log('New Plugin URL', newUrl)
-    }
-  }
-)
-
-const resize = (width: number, height: number) => {
-  console.log('Resize', width, height)
-  //pluginInstance.resize(width+'px', height+'px')
-
-  if (ComfyPluginWrapper.value) {
-    ComfyPluginWrapper.value.style.width = `${width}px`
-    ComfyPluginWrapper.value.style.height = `${height}px`
-  }
 }
 
 const reload = () => {
   loaded.value = false
-  pluginInstance.reload()
+  pluginInstance.value?.reload()
 }
 
-onMounted(() => {
-  console.log('**** PluginComponent::onMounted', pluginInstance)
+const start = () => {
+  console.log('_______ MOUNTED PluginComponent _______', props.plugin.id)
 
-  const pluginUrl = props.plugin.url
+  pluginInstance.value = pluginManager.createInstance(props.plugin)
+  
+  pluginInstance.value?.init(
+    pluginModalRef,
+    iframeParentRef,
+    props.plugin.url
+  )
 
-  pluginInstance.init()
+  setupListeners()
+}
 
-  if (iframeWrapperRef.value && pluginInstance.iframe.value) {
-    iframeWrapperRef.value.appendChild(pluginInstance.iframe.value)
-    pluginInstance.loadUrl(pluginUrl)
-    pluginInstance.iframe.value.style.fontSize = '0.75rem'
+const setupListeners = () => {
+  if (!pluginInstance.value) return
 
-    pluginInstance.iframe.value.addEventListener('load', () => {
-      loaded.value = true
-
-      pluginInstance.sendMessage({
-        action: 'installed',
-        payload: {}
-      })
-
-      console.log('Plugin Loaded')
-    })
-
-    if (pluginInstance.width.value && pluginInstance.height.value) {
-      resize(pluginInstance.width.value, pluginInstance.height.value)
-    } else {
-      resize(450, 760)
-    }
-  }
-
-  pluginInstance.on('close', close)
-
-  pluginInstance.on('resize', (e: any) => {
-    resize(e.width, e.height)
+  pluginInstance.value.on('loaded', () => {
+    loaded.value = true
   })
 
-  pluginInstance.on('handshake', (e: any) => {
-    const { overlay, width, height } = e
-    pluginInstance.setOptions({ overlay, width, height })
+  pluginInstance.value.on('close', closePluginModal)
 
-    pluginInstance.sendMessage({
+  pluginInstance.value.on('resize', (e: any) => {
+    // Handle resize if needed
+  })
+
+  /*
+   * notify the plugin that the app and litegraph are ready
+   */
+  if (app.ready) {
+    pluginInstance.value.sendMessage({
       action: 'ready',
       payload: {}
     })
+  } else {
+    app.addEventListener('ready', () => {
+      pluginInstance.value?.sendMessage({
+        action: 'ready',
+        payload: {}
+      })
+    })
+  }
 
-    resize(width, height)
+  pluginInstance.value.on('visibilityChanged', (visible: boolean) => {
+    console.log('Plugin visibility changed in component:', props.plugin.id, visible)
   })
+}
 
-  pluginStore.attachInstance(props.plugin.id, pluginInstance)
+onMounted(() => {
+  start()
 })
 
 onBeforeUnmount(() => {
-  pluginStore.detachInstance(props.plugin.id)
-  pluginInstance.destroy()
+  console.log('**** PluginComponent::onBeforeUnmount', props.plugin.id)
+  pluginManager.destroyInstance(props.plugin.id)
 })
 </script>

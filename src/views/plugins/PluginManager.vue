@@ -1,35 +1,47 @@
 <template>
   <teleport to="#comfy-plugins">
     <article
-      v-for="plugin in userPluginList"
+      v-for="plugin in installedPlugins"
       :key="plugin.id"
       :class="['ComfyPlugin', plugin.id]"
-      :disabled="!plugin.enabled"
       :aria-label="plugin.name"
     >
       <PluginComponent
-        v-if="plugin.enabled"
         :plugin="plugin"
         :key="plugin.id"
-        @close="closePlugin"
+        @close="closePluginModal"
       />
     </article>
   </teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { usePluginStore, type ComfyPlugin } from '@/stores/pluginStore'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { pluginManager, type ComfyPlugin } from '@/scripts/core/PluginManager'
 import PluginComponent from './PluginComponent.vue'
 
-const pluginStore = usePluginStore()
-const userPluginList = computed(() => pluginStore.getInstalledPluginList())
+const installedPlugins = ref<ComfyPlugin[]>([])
 
-const closePlugin = (plugin: ComfyPlugin) => {
-  console.log('*** closePlugin', plugin)
+const updatePlugins = () => {
+  installedPlugins.value = pluginManager.getInstalledPlugins()
+}
+
+const closePluginModal = (plugin: ComfyPlugin) => {
+  console.log('PluginManager: Closing plugin:', plugin.id)
+  pluginManager.setPluginVisibility(plugin.id, false)
 }
 
 onMounted(async () => {
-  await pluginStore.fetchPlugins()
+  await pluginManager.fetchAvailablePlugins()
+  updatePlugins()
+  pluginManager.addEventListener('pluginsChanged', updatePlugins)
+  pluginManager.addEventListener('pluginVisibilityChanged', (event: CustomEvent) => {
+    console.log('Plugin visibility changed event:', event.detail)
+  })
+})
+
+onBeforeUnmount(() => {
+  pluginManager.removeEventListener('pluginsChanged', updatePlugins)
+  pluginManager.removeEventListener('pluginVisibilityChanged', () => {})
 })
 </script>

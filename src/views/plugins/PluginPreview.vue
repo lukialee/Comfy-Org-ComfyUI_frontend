@@ -106,8 +106,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { usePluginStore, type ComfyPlugin } from '@/stores/pluginStore'
+import { PropType } from 'vue'
+import { type ComfyPlugin } from '@/scripts/core/PluginManager'
+
 
 const emit = defineEmits(['close', 'install'])
 

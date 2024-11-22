@@ -50,11 +50,11 @@
         class="w-3/5 bg-zinc-950/50 p-2 rounded-lg overflow-x-hidden scrollable"
       >
         <ul
-          v-if="userPluginList.length > 0"
+          v-if="installedPluginList.length > 0"
           class="list-none p-0 m-0 space-y-3"
         >
           <li
-            v-for="plugin in userPluginList"
+            v-for="plugin in installedPluginList"
             :key="plugin.id"
             class="relative bg-zinc-950 border border-zinc-800 rounded-lg w-full flex justify-between space-x-3"
           >
@@ -72,28 +72,13 @@
             </div>
             <div class="flex space-x-3 p-3">
               <button
-                @click="pluginStore.setPluginVisibility(plugin.id, true)"
-                :disabled="!plugin.enabled"
+                @click="openPluginModal(plugin)"
                 class="cm-button flex items-center space-x-1"
               >
                 <i-material-symbols-light-open-in-new
                   class="w-6 h-6 opacity-35"
                 />
                 <span>Open</span>
-              </button>
-              <button
-                v-if="false && plugin.enabled"
-                @click="pluginStore.enablePlugin(plugin.id, false)"
-                class="cm-button"
-              >
-                Disable
-              </button>
-              <button
-                v-if="false && !plugin.enabled"
-                @click="pluginStore.enablePlugin(plugin.id, true)"
-                class="cm-button"
-              >
-                Enable
               </button>
               <button
                 @click="uninstallPlugin(plugin)"
@@ -125,41 +110,39 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useDialogStore } from '@/stores/dialogStore'
-import { usePluginStore, type ComfyPlugin } from '@/stores/pluginStore'
-import { storeToRefs } from 'pinia'
+import { pluginManager, type ComfyPlugin } from '@/scripts/core/PluginManager'
 import PluginPreview from '@/views/plugins/PluginPreview.vue'
 
-const pluginStore = usePluginStore()
 const dialogStore = useDialogStore()
-const { installedPluginIdList } = storeToRefs(pluginStore)
-
 const currentPlugin = ref<ComfyPlugin | null>(null)
-const userPluginList = computed(() => pluginStore.getInstalledPluginList())
+const installedPluginList = ref<ComfyPlugin[]>([])
+const availablePluginList = ref<ComfyPlugin[]>([])
 
-const availablePluginList = computed(() => {
-  const allAvailablePluginList = pluginStore.getAvailablePluginList()
-
-  // remove plugins that already in userPluginList
-  return allAvailablePluginList.filter(
-    (plugin: ComfyPlugin) => !installedPluginIdList.value.includes(plugin.id)
-  )
-})
+const updateLists = () => {
+  installedPluginList.value = pluginManager.getInstalledPlugins()
+  availablePluginList.value = pluginManager.getAvailablePlugins()
+}
 
 const installPlugin = (plugin: ComfyPlugin) => {
-  pluginStore.addToInstalledPluginList(plugin.id)
-  pluginStore.enablePlugin(plugin.id, true)
+  pluginManager.installPlugin(plugin.id)
   currentPlugin.value = null
+  updateLists()
 }
 
 const uninstallPlugin = (plugin: ComfyPlugin) => {
-  pluginStore.removeFromInstalledPluginList(plugin.id)
+  pluginManager.uninstallPlugin(plugin.id)
   currentPlugin.value = null
+  updateLists()
 }
 
 const previewPlugin = (plugin: ComfyPlugin) => {
   currentPlugin.value = plugin
+}
+
+const openPluginModal = (plugin: ComfyPlugin) => {
+  pluginManager.setPluginVisibility(plugin.id, true)
 }
 
 const closeModal = () => {
@@ -167,6 +150,12 @@ const closeModal = () => {
 }
 
 onMounted(async () => {
-  await pluginStore.fetchPlugins()
+  await pluginManager.fetchAvailablePlugins()
+  updateLists()
+  pluginManager.addEventListener('pluginsChanged', updateLists)
+})
+
+onBeforeUnmount(() => {
+  pluginManager.removeEventListener('pluginsChanged', updateLists)
 })
 </script>
