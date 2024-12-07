@@ -1,0 +1,30 @@
+# ComfyUI_frontend Optimize dist files
+
+## Optimization Strategies
+
+- Disable sourcemaps and minify JS and CSS files.
+- For commonly used third-party libraries, load them as external library files instead of bundling them into the application. This way, when updating the files, there is no need to repeatedly update the library files.
+
+## Reasons for Optimization
+
+- Most users prefer faster download times when using the application. Since sourcemaps are primarily used for debugging and troubleshooting, they are not necessary for the majority of users. Reducing file sizes facilitates quicker distribution of the program and decreases storage usage.
+
+## Optimization Results
+
+- The total directory size was reduced from `20.7MB` to `6.1MB`.
+
+
+# 优化ComfyUI前端打包文件
+
+## 优化策略
+
+- 关掉sourcemap，压缩JS和CSS文件。
+- 部分常用第三方库，加载外部库文件，不打包到应用中。这样每次更新文件时，就不必重复更新库文件。
+
+## 优化原因
+
+- 大部分用户使用时，希望更快下载程序，所以大部分人不需要通过sourcemap去Debug或排查问题，缩小文件，会有利于程序的传播，且减少空间占用。
+
+## 优化结果
+
+- 整个目录大小从`20.7MB`减少到`6.1MB`
