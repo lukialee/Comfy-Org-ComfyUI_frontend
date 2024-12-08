@@ -1,3 +1,11 @@
+# Caution
+
+我们对原有项目做了打包优化，缩小了文件。具体说明请参考：[README_OPTIMIZE](./README_OPTIMIZE.md)
+
+以下是项目原有的README内容：
+
+---
+
 <div align="center">
 
 # ComfyUI_frontend

@@ -13,6 +13,16 @@
 
 - The total directory size was reduced from `20.7MB` to `6.1MB`.
 
+## Download Advice
+- If you just want to use ComfyUI as a tool quickly without considering development, you can obtain the files using a shallow clone and sparse-checkout with git.
+```
+git clone --no-checkout  https://gitee.com/lukialee/Comfy-Org-ComfyUI_frontend.git
+cd ComfyUI_frontend-partial
+git sparse-checkout init --cone
+git sparse-checkout set dist
+git checkout main
+```
+- If you are not concerned about achieving the fastest download and update speeds, it's sufficient to directly download the compressed file of the "release".
 
 # 优化ComfyUI前端打包文件
 
@@ -28,3 +38,8 @@
 ## 优化结果
 
 - 整个目录大小从`20.7MB`减少到`6.1MB`
+
+## 使用建议
+
+- 如果只是想把ComfyUI当成一个工具快速使用，不考虑开发，使用git浅克隆和稀疏克隆的方式获取项目打包后的文件。
+- 如果不考虑极致下载和更新速度，直接下载“发行版”的压缩文件就够了。
