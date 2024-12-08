@@ -16,7 +16,7 @@
 ## Download Advice
 - If you just want to use ComfyUI as a tool quickly without considering development, you can obtain the files using a shallow clone and sparse-checkout with git.
 ```
-git clone --no-checkout  https://gitee.com/lukialee/Comfy-Org-ComfyUI_frontend.git
+git clone --no-checkout --filter=blob:none --depth=1 https://gitee.com/lukialee/Comfy-Org-ComfyUI_frontend.git
 cd ComfyUI_frontend-partial
 git sparse-checkout init --cone
 git sparse-checkout set dist
