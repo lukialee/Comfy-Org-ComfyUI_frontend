@@ -6,6 +6,8 @@ import dotenv from "dotenv"
 import Icons from 'unplugin-icons/vite'
 import IconsResolver from 'unplugin-icons/resolver'
 import Components from 'unplugin-vue-components/vite'
+import cdnImport from 'vite-plugin-cdn-import'
+// import analyzer from 'vite-bundle-analyzer'
 
 dotenv.config()
 
@@ -140,13 +142,40 @@ export default defineConfig({
       dirs: ['src/components', 'src/layout', 'src/views'],
       deep: true,
       extensions: ['vue']
-    })
+    }),
+    cdnImport({
+      modules: [
+        {
+          name: 'vue',
+          var: 'Vue',
+          path: '/libs/vue/3.5.13/vue.runtime.global.min.js'
+        },
+        {
+          name: 'vue-i18n',
+          var: 'VueI18n',
+          path: '/libs/vue-i18n/9.14.2/vue-i18n.global.prod.min.js'
+        },
+        {
+          name: 'lodash',
+          var: '_',
+          path: '/libs/lodash/4.17.21/lodash.min.js'
+        },
+        {
+          name: 'vue-router',
+          var: 'VueRouter',
+          path: '/libs/vue-router/4.5.0/vue-router.global.prod.min.js'
+        }
+      ],
+      prodUrl: '{path}'
+    }),
+    // analyzer(),
   ],
 
   build: {
-    minify: SHOULD_MINIFY ? 'esbuild' : false,
+    minify: 'terser',
     target: 'es2022',
-    sourcemap: true,
+    sourcemap: false,
+    cssMinify: 'lightningcss',
     rollupOptions: {
       // Disabling tree-shaking
       // Prevent vite remove unused exports
@@ -155,7 +184,7 @@ export default defineConfig({
   },
 
   esbuild: {
-    minifyIdentifiers: false,
+    minifyIdentifiers: true,
     keepNames: true,
     minifySyntax: SHOULD_MINIFY,
     minifyWhitespace: SHOULD_MINIFY
